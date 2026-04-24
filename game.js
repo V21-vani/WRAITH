@@ -5,6 +5,28 @@
 const WRAITH_API_URL = "https://notshakti-wraith-env.hf.space";
 
 // ============================================================
+// SPRITESHEET CONFIGS
+// ============================================================
+const WRAITH_SPRITES = {
+    wraith_idle:    { width: 2550, height: 150, frames: 17 },
+    wraith_attack1: { width: 2200, height: 150, frames: 11 },
+    wraith_attack2: { width: 2000, height: 150, frames: 10 },
+    wraith_death:   { width: 2850, height: 150, frames: 19 },
+    wraith_hit:     { width: 450,  height: 150, frames: 3  },
+    wraith_walk:    { width: 1800, height: 150, frames: 12 },
+    wraith_dash:    { width: 1800, height: 150, frames: 12 }, // fallback to walk dims if no dash
+};
+
+const PLAYER_SPRITES = {
+    player_idle:    { width: 2880, height: 128, frames: 12 },
+    player_run:     { width: 1920, height: 128, frames: 8  },
+    player_attack1: { width: 720,  height: 128, frames: 3  },
+    player_dash:    { width: 960,  height: 128, frames: 4  },
+    player_death:   { width: 2400, height: 128, frames: 10 },
+    player_hit:     { width: 240,  height: 128, frames: 1  },
+};
+
+// ============================================================
 // CUTSCENE SCENE
 // ============================================================
 class CutsceneScene extends Phaser.Scene {
@@ -65,7 +87,6 @@ class CutsceneScene extends Phaser.Scene {
         const screen = this.screens[index];
         const centerX = 550;
 
-        // WRAITH red eyes on screen 3
         if (screen.isWraith && index === 2) {
             const eyeGlowL = this.add.circle(490, 180, 14, 0x330000, 1);
             const eyeGlowR = this.add.circle(610, 180, 14, 0x330000, 1);
@@ -95,7 +116,6 @@ class CutsceneScene extends Phaser.Scene {
             this.textObjects.push(t);
         });
 
-        // Scanline prompt
         const delay = screen.isFinal ? 1200 : 2000;
         this.time.delayedCall(delay + totalLines * 350, () => {
             if (!screen.isFinal) {
@@ -128,26 +148,26 @@ class GameScene extends Phaser.Scene {
     constructor() { super({ key: 'GameScene' }); }
 
     preload() {
-        // WRAITH boss sprites
-        this.load.image('wraith_idle',    'assets/sprites/wraith/wraith_idle.png');
-        this.load.image('wraith_attack1', 'assets/sprites/wraith/wraith_attack1.png');
-        this.load.image('wraith_attack2', 'assets/sprites/wraith/wraith_attack2.png');
-        this.load.image('wraith_death',   'assets/sprites/wraith/wraith_death.png');
-        this.load.image('wraith_hit',     'assets/sprites/wraith/wraith_hit.png');
-        this.load.image('wraith_walk',    'assets/sprites/wraith/wraith_walk.png');
-        this.load.image('wraith_dash',    'assets/sprites/wraith/wraith_dash.png');
+        // Load all spritesheets with correct frame dimensions
+        const ws = WRAITH_SPRITES;
+        const ps = PLAYER_SPRITES;
 
-        // Player (Aryan) sprites — rename your files to match these
-        this.load.image('player_idle',   'assets/sprites/player/player_idle.png');
-        this.load.image('player_run',    'assets/sprites/player/player_run.png');
-        this.load.image('player_attack', 'assets/sprites/player/player_attack1.png');
-        this.load.image('player_dash',   'assets/sprites/player/player_dash.png');
-        this.load.image('player_hit',    'assets/sprites/player/player_hit.png');
-        this.load.image('player_death',  'assets/sprites/player/player_death.png');
+        this.load.spritesheet('wraith_idle',    'assets/sprites/wraith/wraith_idle.png',    { frameWidth: ws.wraith_idle.width    / ws.wraith_idle.frames,    frameHeight: ws.wraith_idle.height    });
+        this.load.spritesheet('wraith_attack1', 'assets/sprites/wraith/wraith_attack1.png', { frameWidth: ws.wraith_attack1.width / ws.wraith_attack1.frames, frameHeight: ws.wraith_attack1.height });
+        this.load.spritesheet('wraith_attack2', 'assets/sprites/wraith/wraith_attack2.png', { frameWidth: ws.wraith_attack2.width / ws.wraith_attack2.frames, frameHeight: ws.wraith_attack2.height });
+        this.load.spritesheet('wraith_death',   'assets/sprites/wraith/wraith_death.png',   { frameWidth: ws.wraith_death.width   / ws.wraith_death.frames,   frameHeight: ws.wraith_death.height   });
+        this.load.spritesheet('wraith_hit',     'assets/sprites/wraith/wraith_hit.png',     { frameWidth: ws.wraith_hit.width     / ws.wraith_hit.frames,     frameHeight: ws.wraith_hit.height     });
+        this.load.spritesheet('wraith_walk',    'assets/sprites/wraith/wraith_walk.png',    { frameWidth: ws.wraith_walk.width    / ws.wraith_walk.frames,    frameHeight: ws.wraith_walk.height    });
+
+        this.load.spritesheet('player_idle',    'assets/sprites/player/player_idle.png',    { frameWidth: ps.player_idle.width    / ps.player_idle.frames,    frameHeight: ps.player_idle.height    });
+        this.load.spritesheet('player_run',     'assets/sprites/player/player_run.png',     { frameWidth: ps.player_run.width     / ps.player_run.frames,     frameHeight: ps.player_run.height     });
+        this.load.spritesheet('player_attack1', 'assets/sprites/player/player_attack1.png', { frameWidth: ps.player_attack1.width / ps.player_attack1.frames, frameHeight: ps.player_attack1.height });
+        this.load.spritesheet('player_dash',    'assets/sprites/player/player_dash.png',    { frameWidth: ps.player_dash.width    / ps.player_dash.frames,    frameHeight: ps.player_dash.height    });
+        this.load.spritesheet('player_death',   'assets/sprites/player/player_death.png',   { frameWidth: ps.player_death.width   / ps.player_death.frames,   frameHeight: ps.player_death.height   });
+        this.load.spritesheet('player_hit',     'assets/sprites/player/player_hit.png',     { frameWidth: ps.player_hit.width     / ps.player_hit.frames,     frameHeight: ps.player_hit.height     });
     }
 
     create() {
-        // State
         this.playerHP = 100;
         this.bossHP = 150;
         this.currentRound = 1;
@@ -156,15 +176,14 @@ class GameScene extends Phaser.Scene {
         this.turnTimer = 3;
         this.gameOver = false;
         this.lastDodgeTime = 0;
-        this.pendingHit = false;
 
+        this.createAnims();
         this.createBackground();
         this.createSprites();
         this.createUI();
         this.createSidebar();
         this.createControls();
 
-        // Turn tick every second
         this.timerEvent = this.time.addEvent({
             delay: 1000,
             callback: this.tickTimer,
@@ -175,55 +194,73 @@ class GameScene extends Phaser.Scene {
         this.showRoundBanner(1);
     }
 
+    // ─── ANIMATIONS ──────────────────────────────────────────
+    createAnims() {
+        const makeAnim = (key, frameCount, fps, repeat) => {
+            if (!this.anims.exists(key)) {
+                this.anims.create({
+                    key,
+                    frames: this.anims.generateFrameNumbers(key, { start: 0, end: frameCount - 1 }),
+                    frameRate: fps,
+                    repeat: repeat !== undefined ? repeat : -1
+                });
+            }
+        };
+
+        // Wraith anims
+        makeAnim('wraith_idle',    17, 12, -1);
+        makeAnim('wraith_attack1', 11, 16, 0);
+        makeAnim('wraith_attack2', 10, 16, 0);
+        makeAnim('wraith_death',   19, 12, 0);
+        makeAnim('wraith_hit',      3, 12, 0);
+        makeAnim('wraith_walk',    12, 12, -1);
+
+        // Player anims
+        makeAnim('player_idle',    12, 10, -1);
+        makeAnim('player_run',      8, 12, -1);
+        makeAnim('player_attack1',  3, 12, 0);
+        makeAnim('player_dash',     4, 14, 0);
+        makeAnim('player_death',   10, 10, 0);
+        makeAnim('player_hit',      1, 6,  0);
+    }
+
     // ─── BACKGROUND ──────────────────────────────────────────
     createBackground() {
         const g = this.add.graphics();
 
-        // Arena floor to ceiling gradient
         g.fillGradientStyle(0x110520, 0x110520, 0x0d0d0d, 0x0d0d0d, 1);
         g.fillRect(0, 0, 820, 600);
 
-        // Sidebar background
         g.fillStyle(0x070310, 1);
         g.fillRect(820, 0, 280, 600);
 
-        // Sidebar border line
         g.fillStyle(0x330011, 1);
         g.fillRect(820, 0, 2, 600);
 
-        // Stone floor
         g.fillStyle(0x1a0d30, 1);
         g.fillRect(0, 470, 820, 130);
         g.fillStyle(0x250f3a, 1);
         g.fillRect(0, 465, 820, 12);
 
-        // Floor cracks
         g.lineStyle(1, 0x33003a, 0.5);
         g.strokeLineShape(new Phaser.Geom.Line(100, 475, 180, 490));
         g.strokeLineShape(new Phaser.Geom.Line(400, 470, 460, 480));
         g.strokeLineShape(new Phaser.Geom.Line(600, 475, 680, 468));
 
-        // Gothic pillars
         const pillarPositions = [50, 230, 560, 740];
         pillarPositions.forEach(px => {
-            // Pillar body
             g.fillStyle(0x0f0820, 1);
             g.fillRect(px, 120, 44, 350);
-            // Pillar highlight
             g.fillStyle(0x1c1030, 1);
             g.fillRect(px, 120, 6, 350);
-            // Pillar cap
             g.fillStyle(0x1a0d30, 1);
             g.fillRect(px - 8, 112, 60, 16);
-            // Pillar base
             g.fillRect(px - 8, 462, 60, 12);
         });
 
-        // Distant arch top
         g.lineStyle(3, 0x220833, 0.7);
         g.strokeEllipse(410, 0, 600, 300);
 
-        // Red mist at ground level
         for (let i = 0; i < 10; i++) {
             const mx = 40 + i * 76;
             const mist = this.add.rectangle(mx, 482, 50 + Math.random() * 60, 18, 0x3a0020, 0.25 + Math.random() * 0.15);
@@ -238,7 +275,6 @@ class GameScene extends Phaser.Scene {
             });
         }
 
-        // Torch flicker effects on pillars
         [50 + 22, 230 + 22].forEach(tx => {
             const torchGlow = this.add.circle(tx, 140, 20, 0xff3300, 0.15);
             this.tweens.add({
@@ -255,12 +291,14 @@ class GameScene extends Phaser.Scene {
 
     // ─── SPRITES ─────────────────────────────────────────────
     createSprites() {
-        this.playerSprite = this.add.image(190, 400, 'player_idle')
-            .setScale(2.0)
+        // Player sprite
+        this.playerSprite = this.add.sprite(190, 400, 'player_idle')
+            .setScale(2.4)
             .setOrigin(0.5, 1);
+        this.playerSprite.play('player_idle');
 
-        // WRAITH sprite with glow aura
-        this.wraithGlow = this.add.circle(700, 360, 60, 0xff0011, 0.12);
+        // WRAITH glow aura
+        this.wraithGlow = this.add.circle(680, 390, 60, 0xff0011, 0.12);
         this.tweens.add({
             targets: this.wraithGlow,
             scaleX: { from: 0.9, to: 1.2 },
@@ -272,10 +310,28 @@ class GameScene extends Phaser.Scene {
             ease: 'Sine.easeInOut'
         });
 
-        this.wraithSprite = this.add.image(700, 370, 'wraith_idle')
-            .setScale(2.2)
+        // WRAITH sprite — scaled up, flipped, anchored to feet
+        this.wraithSprite = this.add.sprite(680, 430, 'wraith_idle')
+            .setScale(2.8)
             .setFlipX(true)
             .setOrigin(0.5, 1);
+        this.wraithSprite.play('wraith_idle');
+
+        // Listen for one-shot anims finishing → return to idle
+        this.wraithSprite.on('animationcomplete', (anim) => {
+            const oneShots = ['wraith_attack1', 'wraith_attack2', 'wraith_hit'];
+            if (oneShots.includes(anim.key) && !this.gameOver) {
+                this.wraithSprite.play('wraith_idle');
+                this.wraithFloatTween.resume();
+            }
+        });
+
+        this.playerSprite.on('animationcomplete', (anim) => {
+            const oneShots = ['player_attack1', 'player_dash', 'player_hit'];
+            if (oneShots.includes(anim.key) && !this.gameOver) {
+                this.playerSprite.play('player_idle');
+            }
+        });
 
         // WRAITH float loop
         this.wraithFloatTween = this.tweens.add({
@@ -290,30 +346,24 @@ class GameScene extends Phaser.Scene {
 
     // ─── UI ──────────────────────────────────────────────────
     createUI() {
-        // HP bar backgrounds
         this.add.rectangle(18, 22, 380, 18, 0x220000).setOrigin(0, 0.5);
         this.add.rectangle(440, 22, 360, 18, 0x000022).setOrigin(0, 0.5);
 
-        // Live HP bars
         this.playerHPBar = this.add.rectangle(18, 22, 380, 18, 0x2266ff).setOrigin(0, 0.5);
         this.bossHPBar   = this.add.rectangle(440, 22, 360, 18, 0xff2233).setOrigin(0, 0.5);
 
-        // Labels
         this.add.text(18, 10, 'HUNTER', { fontFamily: 'monospace', fontSize: '11px', color: '#3399ff' });
         this.add.text(736, 10, 'WRAITH', { fontFamily: 'monospace', fontSize: '11px', color: '#ff2233' });
 
-        // Round text
         this.roundText = this.add.text(410, 8, 'ROUND 1', {
             fontFamily: 'monospace', fontSize: '13px', color: '#e8e0ff'
         }).setOrigin(0.5, 0);
 
-        // Turn timer
         this.timerText = this.add.text(410, 45, '3', {
             fontFamily: 'monospace', fontSize: '32px', color: '#ff2233',
             stroke: '#000000', strokeThickness: 3
         }).setOrigin(0.5);
 
-        // HP numbers
         this.playerHPText = this.add.text(18, 32, '100/100', {
             fontFamily: 'monospace', fontSize: '10px', color: '#8888cc'
         });
@@ -321,7 +371,6 @@ class GameScene extends Phaser.Scene {
             fontFamily: 'monospace', fontSize: '10px', color: '#cc8888'
         }).setOrigin(1, 0);
 
-        // Controls hint (bottom)
         this.add.text(10, 585, '← → MOVE   Z ATTACK   X DODGE LEFT   C DODGE RIGHT', {
             fontFamily: 'monospace', fontSize: '10px', color: '#332244'
         });
@@ -338,29 +387,24 @@ class GameScene extends Phaser.Scene {
             fontFamily: 'monospace', fontSize: '10px', color: '#550011', fontStyle: 'italic'
         });
 
-        // Divider
         this.add.rectangle(960, 52, 264, 1, 0x330011);
 
-        // Bias section
         this.add.text(sx, 60, 'DODGE BIAS', {
             fontFamily: 'monospace', fontSize: '11px', color: '#882233'
         });
 
-        // Left bias
         this.add.rectangle(sx, 80, 180, 10, 0x1a0008).setOrigin(0, 0.5);
         this.leftBiasBar = this.add.rectangle(sx, 80, 0, 10, 0xff2233).setOrigin(0, 0.5);
         this.leftBiasLabel = this.add.text(sx + 185, 74, 'LEFT  0%', {
             fontFamily: 'monospace', fontSize: '10px', color: '#ff6677'
         });
 
-        // Right bias
         this.add.rectangle(sx, 96, 180, 10, 0x1a0008).setOrigin(0, 0.5);
         this.rightBiasBar = this.add.rectangle(sx, 96, 0, 10, 0xff6600).setOrigin(0, 0.5);
         this.rightBiasLabel = this.add.text(sx + 185, 90, 'RIGHT 0%', {
             fontFamily: 'monospace', fontSize: '10px', color: '#ff8844'
         });
 
-        // Panic / rounds
         this.add.text(sx, 112, 'PANIC STATE', {
             fontFamily: 'monospace', fontSize: '10px', color: '#882233'
         });
@@ -382,10 +426,8 @@ class GameScene extends Phaser.Scene {
             fontFamily: 'monospace', fontSize: '10px', color: '#e8e0ff'
         });
 
-        // Divider
         this.add.rectangle(960, 158, 264, 1, 0x330011);
 
-        // Analysis
         this.add.text(sx, 165, 'WRAITH ANALYSIS:', {
             fontFamily: 'monospace', fontSize: '11px', color: '#882233'
         });
@@ -397,20 +439,17 @@ class GameScene extends Phaser.Scene {
             lineSpacing: 5
         });
 
-        // Attack display
         this.add.rectangle(960, 430, 264, 1, 0x330011);
         this.attackDisplayBg = this.add.rectangle(960, 455, 264, 34, 0x110005).setAlpha(0);
         this.attackDisplayText = this.add.text(960, 455, '', {
             fontFamily: 'monospace', fontSize: '13px', color: '#ff2233', align: 'center'
         }).setOrigin(0.5).setAlpha(0);
 
-        // PATTERN LOCKED
         this.patternLockedBg = this.add.rectangle(960, 495, 264, 34, 0x330000).setAlpha(0);
         this.patternLockedText = this.add.text(960, 495, '⚡ PATTERN LOCKED', {
             fontFamily: 'monospace', fontSize: '14px', color: '#ff2233'
         }).setOrigin(0.5).setAlpha(0);
 
-        // Scanline overlay on sidebar
         for (let y = 0; y < 600; y += 4) {
             this.add.rectangle(960, y, 264, 1, 0x000000, 0.15);
         }
@@ -418,10 +457,10 @@ class GameScene extends Phaser.Scene {
 
     // ─── CONTROLS ────────────────────────────────────────────
     createControls() {
-        this.cursors      = this.input.keyboard.createCursorKeys();
-        this.attackKey    = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Z);
-        this.dodgeLeftKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
-        this.dodgeRightKey= this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.C);
+        this.cursors       = this.input.keyboard.createCursorKeys();
+        this.attackKey     = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Z);
+        this.dodgeLeftKey  = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
+        this.dodgeRightKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.C);
     }
 
     // ─── TIMER ───────────────────────────────────────────────
@@ -485,7 +524,6 @@ class GameScene extends Phaser.Scene {
             ? TAUNTS[this.currentRound]
             : (data.reasoning || 'Processing behavioral data...');
 
-        // Update profile stats
         const profile = data.profile || {};
         const lb = Math.round(profile.left_bias  || 50);
         const rb = Math.round(profile.right_bias || 50);
@@ -501,7 +539,6 @@ class GameScene extends Phaser.Scene {
         this.roundsObservedText.setText(this.currentRound.toString());
         this.dominantText.setText(profile.dominant_dodge || 'MIXED');
 
-        // Pattern locked indicator
         if (lb > 80 || rb > 80) {
             this.patternLockedBg.setAlpha(1);
             this.patternLockedText.setAlpha(1);
@@ -517,20 +554,14 @@ class GameScene extends Phaser.Scene {
             this.patternLockedText.setAlpha(0);
         }
 
-        // Show attack label
         const attackLabel = data.attack || 'WAIT';
         this.attackDisplayText.setText('► ' + attackLabel);
         this.attackDisplayBg.setAlpha(1);
         this.attackDisplayText.setAlpha(1);
-        if (isTaunt) {
-            this.analysisText.setColor('#cc3333');
-        } else {
-            this.analysisText.setColor('#ff5566');
-        }
+        this.analysisText.setColor(isTaunt ? '#cc3333' : '#ff5566');
 
         this.typewriter(this.analysisText, displayText, 28);
 
-        // Execute attack with delay
         this.time.delayedCall(900, () => {
             this.executeWraithAttack(attackLabel, data.hit === true);
         });
@@ -538,19 +569,19 @@ class GameScene extends Phaser.Scene {
 
     // ─── WRAITH ATTACK ANIMATIONS ─────────────────────────────
     executeWraithAttack(attackType, hit) {
-        this.wraithFloatTween.pause();
+        if (this.wraithFloatTween) this.wraithFloatTween.pause();
 
         switch (attackType) {
             case 'SWEEP_LEFT':
-                this.wraithSprite.setTexture('wraith_attack1');
+                this.wraithSprite.play('wraith_attack1');
                 this.animSweepLeft(hit);
                 break;
             case 'FEINT_RIGHT':
-                this.wraithSprite.setTexture('wraith_attack2');
+                this.wraithSprite.play('wraith_attack2');
                 this.animFeintRight(hit);
                 break;
             case 'OVERHEAD':
-                this.wraithSprite.setTexture('wraith_attack1');
+                this.wraithSprite.play('wraith_attack1');
                 this.animOverhead(hit);
                 break;
             case 'WAIT':
@@ -559,24 +590,16 @@ class GameScene extends Phaser.Scene {
                 break;
         }
 
-        this.time.delayedCall(1100, () => {
-            this.wraithSprite.setTexture('wraith_idle');
-            this.wraithFloatTween.resume();
-        });
-
         if (hit && attackType !== 'WAIT') {
             const dodgeWindow = this.time.now - this.lastDodgeTime < 500;
             const damage = dodgeWindow ? 3 : 15;
             this.time.delayedCall(500, () => {
                 this.playerHP = Math.max(0, this.playerHP - damage);
                 this.updateHPBars();
-                this.playerSprite.setTexture('player_hit');
+                this.playerSprite.play('player_hit');
                 this.cameras.main.shake(180, 0.009);
-                this.time.delayedCall(350, () => {
-                    if (this.playerHP > 0) this.playerSprite.setTexture('player_idle');
-                });
                 if (this.playerHP <= 0) {
-                    this.playerSprite.setTexture('player_death');
+                    this.playerSprite.play('player_death');
                     this.time.delayedCall(800, () => this.endGame(false));
                 }
             });
@@ -627,11 +650,11 @@ class GameScene extends Phaser.Scene {
     animOverhead(hit) {
         this.tweens.add({
             targets: this.wraithSprite,
-            scaleY: 2.6,
+            scaleY: 3.2,
             duration: 300,
             ease: 'Back.easeIn',
             onComplete: () => {
-                this.tweens.add({ targets: this.wraithSprite, scaleY: 2.2, duration: 200 });
+                this.tweens.add({ targets: this.wraithSprite, scaleY: 2.8, duration: 200 });
                 const shockwave = this.add.circle(410, 470, 10, 0xff2233, 0.8);
                 const shockwaveOuter = this.add.circle(410, 470, 10, 0x880011, 0.4);
                 this.tweens.add({
@@ -647,7 +670,6 @@ class GameScene extends Phaser.Scene {
     }
 
     animWait() {
-        // Eyes glow brighter, observing
         this.tweens.add({
             targets: this.wraithGlow,
             alpha: { from: 0.12, to: 0.45 },
@@ -655,7 +677,12 @@ class GameScene extends Phaser.Scene {
             scaleY: { from: 1, to: 1.5 },
             duration: 600,
             yoyo: true,
-            repeat: 1
+            repeat: 1,
+            onComplete: () => {
+                if (!this.gameOver) {
+                    this.wraithFloatTween.resume();
+                }
+            }
         });
     }
 
@@ -706,46 +733,50 @@ class GameScene extends Phaser.Scene {
 
         if (JD(this.cursors.left)) {
             this.recordMove('MOVE_LEFT');
-            this.playerSprite.setTexture('player_run');
+            this.playerSprite.setFlipX(true);
+            this.playerSprite.play('player_run', true);
             this.tweens.add({
                 targets: this.playerSprite,
                 x: Math.max(60, this.playerSprite.x - 60),
                 duration: 120
             });
-            this.time.delayedCall(180, () => {
-                if (this.isPlayerTurn) this.playerSprite.setTexture('player_idle');
+            this.time.delayedCall(200, () => {
+                if (this.isPlayerTurn && !this.gameOver) {
+                    this.playerSprite.setFlipX(false);
+                    this.playerSprite.play('player_idle', true);
+                }
             });
         }
 
         if (JD(this.cursors.right)) {
             this.recordMove('MOVE_RIGHT');
-            this.playerSprite.setTexture('player_run');
+            this.playerSprite.setFlipX(false);
+            this.playerSprite.play('player_run', true);
             this.tweens.add({
                 targets: this.playerSprite,
                 x: Math.min(760, this.playerSprite.x + 60),
                 duration: 120
             });
-            this.time.delayedCall(180, () => {
-                if (this.isPlayerTurn) this.playerSprite.setTexture('player_idle');
+            this.time.delayedCall(200, () => {
+                if (this.isPlayerTurn && !this.gameOver) {
+                    this.playerSprite.play('player_idle', true);
+                }
             });
         }
 
         if (JD(this.attackKey)) {
             this.recordMove('ATTACK');
-            this.playerSprite.setTexture('player_attack');
-            // Deal damage to WRAITH
+            this.playerSprite.setFlipX(false);
+            this.playerSprite.play('player_attack1', true);
             this.bossHP = Math.max(0, this.bossHP - 10);
             this.updateHPBars();
-            this.wraithSprite.setTexture('wraith_hit');
-            // Small WRAITH flash
-            const hitFlash = this.add.rectangle(700, 380, 60, 80, 0x3399ff, 0.4);
+            this.wraithSprite.play('wraith_hit', true);
+            const hitFlash = this.add.rectangle(680, 400, 60, 80, 0x3399ff, 0.4);
             this.time.delayedCall(280, () => {
                 hitFlash.destroy();
-                if (!this.gameOver) this.wraithSprite.setTexture('wraith_idle');
-                this.playerSprite.setTexture('player_idle');
             });
             if (this.bossHP <= 0) {
-                this.wraithSprite.setTexture('wraith_death');
+                this.wraithSprite.play('wraith_death', true);
                 this.time.delayedCall(800, () => this.endGame(true));
             }
         }
@@ -753,28 +784,35 @@ class GameScene extends Phaser.Scene {
         if (JD(this.dodgeLeftKey)) {
             this.recordMove('DODGE_LEFT');
             this.lastDodgeTime = this.time.now;
-            this.playerSprite.setTexture('player_dash');
+            this.playerSprite.setFlipX(true);
+            this.playerSprite.play('player_dash', true);
             this.tweens.add({
                 targets: this.playerSprite,
                 x: Math.max(60, this.playerSprite.x - 85),
                 duration: 90
             });
-            this.time.delayedCall(200, () => {
-                if (this.isPlayerTurn) this.playerSprite.setTexture('player_idle');
+            this.time.delayedCall(220, () => {
+                if (this.isPlayerTurn && !this.gameOver) {
+                    this.playerSprite.setFlipX(false);
+                    this.playerSprite.play('player_idle', true);
+                }
             });
         }
 
         if (JD(this.dodgeRightKey)) {
             this.recordMove('DODGE_RIGHT');
             this.lastDodgeTime = this.time.now;
-            this.playerSprite.setTexture('player_dash');
+            this.playerSprite.setFlipX(false);
+            this.playerSprite.play('player_dash', true);
             this.tweens.add({
                 targets: this.playerSprite,
                 x: Math.min(760, this.playerSprite.x + 85),
                 duration: 90
             });
-            this.time.delayedCall(200, () => {
-                if (this.isPlayerTurn) this.playerSprite.setTexture('player_idle');
+            this.time.delayedCall(220, () => {
+                if (this.isPlayerTurn && !this.gameOver) {
+                    this.playerSprite.play('player_idle', true);
+                }
             });
         }
     }
