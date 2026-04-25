@@ -15,6 +15,22 @@ from models import WraithAction
 from combo_selector import ComboSelector
 from combos import COMBOS
 
+# Maps backend combo names → visual attack patterns game.js understands
+COMBO_TO_VISUAL = {
+    "WRATH_INCARNATE":  "SWEEP_LEFT",
+    "SWEEP_CROSS":      "SWEEP_LEFT",
+    "FEINT_STRIKE":     "SWEEP_LEFT",
+    "GHOST_STEP":       "FEINT_RIGHT",
+    "BAIT_AND_PUNISH":  "FEINT_RIGHT",
+    "COUNTER_ASSAULT":  "OVERHEAD",
+    "SHADOW_OBSERVER":  "OVERHEAD",
+    "PHANTOM_RUSH":     "DASH_STRIKE",
+    "SHADOW_STEP":      "DASH_STRIKE",
+    "PANIC_EXPLOIT":    "COMBO_2HIT",
+    "DEATH_SPIRAL":     "COMBO_2HIT",
+    "PRESSURE_WAVE":    "COMBO_2HIT",
+}
+
 # ── Optional LLM policy (loaded if WRAITH_USE_LLM=1 is set) ──────────────────
 _policy = None
 if os.environ.get("WRAITH_USE_LLM") == "1":
@@ -152,6 +168,9 @@ def step(request: StepRequest):
 
     obs = env.step(action)
 
+    # Translate combo name to visual pattern game.js understands
+    visual_attack = COMBO_TO_VISUAL.get(combo_name, "SWEEP_LEFT")
+
     return {
         "observation": {
             "profile_text":      obs.profile_text,
@@ -166,7 +185,7 @@ def step(request: StepRequest):
         "combo":        combo_name,
         "combo_threat": combo.threat_level,
         "sequence":     combo.sequence,
-        "attack":       combo_name,
+        "attack":       visual_attack,   # game.js reads this to pick visual pattern
         "reasoning":    reasoning,
         "hit":          obs.metadata.get("hit",    False),
         "damage":       obs.metadata.get("damage", 0.0),
