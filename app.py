@@ -96,47 +96,14 @@ def step(request: StepRequest):
     env.state_data.player_hp = player_hp
     env.state_data.boss_hp   = boss_hp
 
-    # update profiler with latest player moves
-    if player_moves:
-        for move in player_moves[-3:]:
-            env.profiler.update(move, player_hp)
+    # feed ALL moves from this turn into the persistent profiler
+    for move in player_moves:
+        env.profiler.update(move, player_hp)
 
     profile = env.profiler.get_profile()
 
-    # determine dominant move
-    dominant_move = "DODGE_LEFT"
-    if player_moves:
-        left_count   = player_moves.count("DODGE_LEFT")
-        right_count  = player_moves.count("DODGE_RIGHT")
-        attack_count = player_moves.count("ATTACK")
-        if right_count > left_count and right_count > attack_count:
-            dominant_move = "DODGE_RIGHT"
-        elif attack_count > left_count and attack_count > right_count:
-            dominant_move = "ATTACK"
-
-    # rule-based attack selection (in training, LLM generates this)
-    if dominant_move == "DODGE_LEFT":
-        attack    = "SWEEP_LEFT"
-        reasoning = (
-            f"Player has shown {profile['left_bias']}% left dodge bias. "
-            f"Dominant pattern is LEFT. Deploying SWEEP_LEFT to exploit "
-            f"this predictable behavior."
-        )
-    elif dominant_move == "DODGE_RIGHT":
-        attack    = "FEINT_RIGHT"
-        reasoning = (
-            f"Player favors right dodges at {profile['right_bias']}%. "
-            f"FEINT_RIGHT will punish this dominant pattern."
-        )
-    else:
-        attack    = "OVERHEAD"
-        reasoning = (
-            f"Player is being aggressive. "
-            f"OVERHEAD counters their attack pattern directly."
-        )
-
-    if profile["is_panicking"]:
-        reasoning += " Player is in panic state — they will over-commit to their dominant dodge."
+    # pick the attack that counters the player's accumulated pattern
+    attack, reasoning = env.profiler.get_best_attack()
 
     action = WraithAction(attack=attack, reasoning=reasoning)
 
