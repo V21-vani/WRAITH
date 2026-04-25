@@ -175,9 +175,10 @@ class GameScene extends Phaser.Scene {
             attack_frequency:     0,
             dodge_after_telegraph: 0,
         };
-        this._atkTimestamps = [];
-        this._lastMoveL = 0;   // throttle move recording for held keys
-        this._lastMoveR = 0;
+        this._atkTimestamps    = [];
+        this._lastMoveL        = 0;   // throttle move recording for held keys
+        this._lastMoveR        = 0;
+        this._lastSidebarTick  = 0;   // throttle real-time sidebar updates
 
         this._pendingTimers = [];
 
@@ -619,14 +620,78 @@ class GameScene extends Phaser.Scene {
         });
     }
 
-    // ── API polling — fires every 5 s, non-blocking ───────────────────────────
+    // ── Real-time sidebar update (runs every 120ms from update()) ────────────
+    _updateSidebarRealtime() {
+        const lm    = this.profile.left_moves;
+        const rm    = this.profile.right_moves;
+        const am    = this.profile.attacks;
+        const total = lm + rm + am;
+
+        if (total === 0) return;
+
+        const lb = Math.round(lm / (lm + rm || 1) * 100);
+        const rb = 100 - lb;
+        const ar = Math.round(am / total * 100);
+
+        if (this.lBiasBar)   this.lBiasBar.setSize(Math.max(1, lb * 1.8), 9);
+        if (this.rBiasBar)   this.rBiasBar.setSize(Math.max(1, rb * 1.8), 9);
+        if (this.lBiasLbl)   this.lBiasLbl.setText('LEFT  ' + lb + '%');
+        if (this.rBiasLbl)   this.rBiasLbl.setText('RIGHT ' + rb + '%');
+        if (this.atkRateBar) this.atkRateBar.setSize(Math.max(1, ar * 1.8), 9);
+        if (this.atkRateLbl) this.atkRateLbl.setText(ar + '%');
+        if (this.dashCntTxt) this.dashCntTxt.setText(String(this.profile.dashes));
+        if (this.avgPosTxt)  this.avgPosTxt.setText(Math.round(this.profile.avg_position).toString());
+        if (this.atkFreqTxt) this.atkFreqTxt.setText(this.profile.attack_frequency.toFixed(1));
+        if (this.roundObsTxt) this.roundObsTxt.setText(String(total));
+
+        // Dominant direction from live data
+        let dom = 'MIXED';
+        if (lb >= 60) dom = 'LEFT';
+        else if (rb >= 60) dom = 'RIGHT';
+        if (this.domTxt) this.domTxt.setText(dom);
+
+        // Panic: player HP < 25
+        const panic = this.playerHP < 25;
+        if (this.panicTxt) this.panicTxt.setText(panic ? '[ ACTIVE ]' : '[ STABLE ]').setColor(panic ? '#ff2233' : '#33cc66');
+
+        // Live predicted next attack — updates instantly as you move
+        const predicted = this._predictNextAttack(lb, rb, ar, panic, total);
+        if (this.atkLblTxt && total >= 3) {
+            this.atkLblTxt.setText('► ' + predicted);
+            this.atkLblBg.setAlpha(1);
+            this.atkLblTxt.setAlpha(1);
+        }
+
+        // Flash PATTERN LOCKED when bias is decisive
+        if (lb > 75 || rb > 75) {
+            if (this.ptrnBg)  this.ptrnBg.setAlpha(1);
+            if (this.ptrnTxt) this.ptrnTxt.setAlpha(1);
+        } else {
+            if (this.ptrnBg)  this.ptrnBg.setAlpha(0);
+            if (this.ptrnTxt) this.ptrnTxt.setAlpha(0);
+        }
+    }
+
+    // ── Local next-attack prediction (mirrors backend logic, instant) ─────────
+    _predictNextAttack(lb, rb, ar, panic, total) {
+        if (total < 3) return 'OBSERVING...';
+        if (panic && lb >= 60) return 'WRATH_INCARNATE';
+        if (panic)             return 'PANIC_EXPLOIT';
+        if (lb >= 65)          return 'SWEEP_LEFT';
+        if (rb >= 65)          return 'FEINT_RIGHT';
+        if (ar >= 50)          return 'OVERHEAD';
+        if (total < 8)         return 'ANALYZING...';
+        return 'PHANTOM_RUSH';
+    }
+
+    // ── API polling — fires every 2.5 s, non-blocking ─────────────────────────
     _startApiLoop() {
         const loop = async () => {
             if (this.gameOver || this._isDestroyed) return;
             await this.callAPI();
-            if (!this.gameOver && !this._isDestroyed) this.time.delayedCall(5000, loop);
+            if (!this.gameOver && !this._isDestroyed) this.time.delayedCall(2500, loop);
         };
-        this.time.delayedCall(5000, loop);
+        this.time.delayedCall(2500, loop);
     }
 
     // ── Round auto-increment every 8 s ────────────────────────────────────────
@@ -953,6 +1018,12 @@ class GameScene extends Phaser.Scene {
     // ── Update — continuous player input, wraith drift ────────────────────────
     update() {
         if (this.gameOver || this._isDestroyed) return;
+
+        // Real-time sidebar update — every 120ms so bars reflect live movement
+        if (this.time.now - this._lastSidebarTick > 120) {
+            this._lastSidebarTick = this.time.now;
+            this._updateSidebarRealtime();
+        }
 
         // Wraith autonomous X drift toward player (only when idle)
         if (!this.wraithActing && this.wraith) {
