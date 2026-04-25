@@ -1,6 +1,52 @@
 spec_version: 1
 name: wraith-env
+display_name: WRAITH — Boss AI that Learns Your Patterns
 type: space
 runtime: fastapi
 app: app:app
 port: 7860
+
+description: >
+  WRAITH (Weakness Recognition and Adaptive Intelligence for Tactical Hunting)
+  is an RL boss AI that studies player behavioral patterns across a fight and
+  exploits weaknesses through a 12-combo system. Trained with GRPO via Unsloth.
+
+tags:
+  - game-ai
+  - rl
+  - grpo
+  - boss-ai
+  - behavioral-profiling
+
+observation:
+  profile_text: "Natural language behavioral profile of the player"
+  available_attacks: "List of single attacks WRAITH can use"
+  available_combos: "List of combos available this round (respects cooldowns)"
+  round_number: "Current round number (max 20)"
+  boss_hp: "WRAITH boss HP (starts 100.0)"
+  player_hp: "Player HP (starts 100.0)"
+  done: "Whether the episode has ended"
+  reward: "Reward signal from last action"
+
+action:
+  attack: "One of: SWEEP_LEFT, FEINT_RIGHT, OVERHEAD, WAIT"
+  combo_name: "One of the 12 registered combos (optional)"
+  combo_threat: "Threat level 1-5 (optional)"
+  reasoning: "Tactical reasoning referencing player patterns"
+
+reward:
+  hit_bonus: "+3.0 — attack landed"
+  miss_penalty: "-1.0 — attack missed"
+  exploit_accuracy: "+2.0 — correctly targeted dominant weakness"
+  mentions_direction: "+1.5 — reasoning names the dominant direction"
+  uses_profile_vocab: "+1.0 — reasoning uses profile terminology"
+  panic_awareness: "+0.5 — reasoning mentions panic when player is panicking"
+  generic_penalty: "-1.5 — reasoning too short or ignores profile"
+  win_bonus: "+5.0 — boss wins the episode"
+  combo_threat_bonus: "+(threat-3)*0.5 — high-threat combo lands"
+  missed_high_threat: "-0.5 — high-threat combo misses"
+
+endpoints:
+  reset: POST /reset
+  step:  POST /step
+  state: GET  /state

@@ -33,6 +33,14 @@ class WraithAction(Action):
     reasoning: str = Field(
         description="Why WRAITH chose this attack based on the player behavioral profile"
     )
+    combo_name: Optional[str] = Field(
+        default=None,
+        description="Name of the combo to execute (from COMBOS registry)"
+    )
+    combo_threat: Optional[int] = Field(
+        default=None,
+        description="Threat level of the chosen combo (1-5)"
+    )
     metadata: Dict[str, Any] = Field(
         default_factory=dict,
         description="Additional metadata"
@@ -63,6 +71,10 @@ class WraithObservation(Observation):
         default=["SWEEP_LEFT", "FEINT_RIGHT", "OVERHEAD", "WAIT"],
         description="Attacks the boss can choose from"
     )
+    available_combos: List[str] = Field(
+        default_factory=list,
+        description="Combos available this round (respects cooldowns)"
+    )
     round_number: int = Field(description="Current round number")
     boss_hp: float = Field(description="WRAITH boss current health points")
     player_hp: float = Field(description="Player current health points")
@@ -83,3 +95,4 @@ class WraithState(State):
     player_hp: float = Field(default=100.0)
     done: bool = Field(default=False)
     player_moves: List[str] = Field(default_factory=list)
+    last_combo: Optional[str] = Field(default=None)

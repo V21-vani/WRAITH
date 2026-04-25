@@ -1,5 +1,16 @@
+# Runtime (HuggingFace Spaces / local server)
 fastapi
-uvicorn
-pydantic
+uvicorn[standard]
+pydantic>=2.0
 openenv-core
 requests
+
+# Training only (Colab / GPU machine)
+# unsloth
+# trl>=0.9.0
+# torch
+# transformers
+# peft
+# bitsandbytes
+# datasets
+# accelerate
