@@ -173,7 +173,7 @@ class GameScene extends Phaser.Scene {
         this._dashLockUntil = 0;
 
         // Wraith autonomous state
-        this.wraithTargetX   = 680;
+        this.wraithTargetX   = 720;
         this.lastApiAttack   = 'SWEEP_LEFT';
 
         // Extended player profiling sent to API
@@ -333,9 +333,9 @@ class GameScene extends Phaser.Scene {
 
         this.wraithGY  = GROUND_Y;
         // Fixed aura: smaller radius, closer to ground, barely visible
-        this.wraithAura = this.add.circle(680, this.wraithGY - 10, 35, 0xff0011, 0.07);
+        this.wraithAura = this.add.circle(720, this.wraithGY - 10, 35, 0xff0011, 0.07);
 
-        this.wraith = this.add.sprite(680, this.wraithGY, 'wraith_idle')
+        this.wraith = this.add.sprite(720, this.wraithGY, 'wraith_idle')
             .setScale(2.1).setFlipX(true).setOrigin(0.5, 1);
         this.wraith.play('w-idle');
 
@@ -1241,7 +1241,7 @@ class GameScene extends Phaser.Scene {
         }
 
         // Wraith chases player when idle — speed scales with distance
-        if (!this.wraithActing && this.wraith) {
+        if (!this.wraithActing && !this._roundTransition && this.wraith) {
             const offset  = this.player.x < 400 ? 160 : 190;  // crowd player when they corner
             const targetX = Phaser.Math.Clamp(this.player.x + offset, 430, 740);
             const dx      = targetX - this.wraith.x;
@@ -1471,12 +1471,12 @@ class GameScene extends Phaser.Scene {
         }
         if (this.floatTween) { this.floatTween.stop(); this.floatTween = null; }
         if (this.wraith && this.wraith.active) {
-            this.wraith.setPosition(680, this.wraithGY);
-            this.wraithAura.setPosition(680, this.wraithGY - 10);
+            this.wraith.setPosition(720, this.wraithGY);
+            this.wraithAura.setPosition(720, this.wraithGY - 10);
             this.wraith.setFlipX(true);
             this.wraith.play('w-idle', true);
         }
-        this.wraithTargetX = 680;
+        this.wraithTargetX = 720;
         // Restart float tween after repositioning
         this.floatTween = this.tweens.add({
             targets: [this.wraith, this.wraithAura],
