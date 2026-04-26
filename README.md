@@ -118,8 +118,8 @@ Fine-tuned on **500 synthetic episodes** across 5 player archetypes (left-heavy,
 - KL divergence confirms genuine policy divergence from base model
 - Trained model achieves **100% hit rate and win rate** vs baseline
 
-![Training Curves](wraith_training_curves.png)
-![Policy vs Random](wraith_comparison.png)
+![Training Curves](https://raw.githubusercontent.com/V21-vani/WRAITH/main/wraith_training_curves.png)
+![Policy vs Random](https://raw.githubusercontent.com/V21-vani/WRAITH/main/wraith_comparison.png)
 
 ---
 
@@ -173,7 +173,7 @@ WRAITH/
 ├── combos.py            # 12 tactical combo definitions
 ├── combo_selector.py    # Rule-based combo selector (fallback)
 ├── policy.py            # LLM policy wrapper (WraithPolicy)
-├── train_grpo.ipynb     # GRPO training notebook (Colab-ready)
+├── training.ipynb       # GRPO training notebook (Kaggle/Colab-ready)
 ├── openenv.yaml         # OpenEnv manifest
 ├── Dockerfile           # HuggingFace Spaces deployment
 └── requirements.txt     # Python dependencies
