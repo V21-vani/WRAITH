@@ -143,6 +143,9 @@ class GameScene extends Phaser.Scene {
         // Core game state
         this.playerHP     = 100;
         this.bossHP       = 220;
+        this.stamina      = 100;
+        this.maxStamina   = 100;
+        this._lastStaminaUse = -9999;
         this.round        = 1;
         this.moveBuf      = [];
         this.gameOver     = false;
@@ -413,6 +416,11 @@ class GameScene extends Phaser.Scene {
         this.roundTxt  = this.add.text(410, 6, 'ROUND 1', { fontFamily: 'monospace', fontSize: '12px', color: '#e8e0ff' }).setOrigin(0.5, 0);
         this.pHPTxt    = this.add.text(14,  30, '100/100', { fontFamily: 'monospace', fontSize: '9px', color: '#7799cc' });
         this.bHPTxt    = this.add.text(794, 30, '220/220', { fontFamily: 'monospace', fontSize: '9px', color: '#cc7788' }).setOrigin(1, 0);
+
+        // Stamina bar
+        this.add.rectangle(14, 41, 380, 7, 0x001a00).setOrigin(0, 0.5);
+        this.staminaBar = this.add.rectangle(14, 41, 380, 7, 0x33ff66).setOrigin(0, 0.5);
+        this.add.text(14, 46, 'STAMINA', { fontFamily: 'monospace', fontSize: '8px', color: '#226633' });
 
         // Persistent wraith action status (replaces the turn badge + countdown)
         this.statusTxt = this.add.text(410, 52, '◈ OBSERVING', {
@@ -1075,6 +1083,12 @@ class GameScene extends Phaser.Scene {
             this._updateSidebarRealtime();
         }
 
+        // Stamina regen — starts 300ms after last use, fills in ~2.5s
+        if (this.stamina < this.maxStamina && this.time.now - this._lastStaminaUse > 300) {
+            this.stamina = Math.min(this.maxStamina, this.stamina + (this.game.loop.delta / 1000) * 42);
+            this.updateBars();
+        }
+
         // Wraith chases player when idle — speed scales with distance
         if (!this.wraithActing && this.wraith) {
             const offset  = this.player.x < 400 ? 160 : 190;  // crowd player when they corner
@@ -1181,52 +1195,60 @@ class GameScene extends Phaser.Scene {
         }
 
         if (JD(this.kZ) && !this.atkCooldown) {
-            if (this.isJumping && !this.isFalling) {
-                this.performAttack('JUMP_UP_ATTACK',   'JUMP_UP_ATTACK',   10, '#3399ff', 350, 'p-jup-atk',   230);
-            } else if (this.isJumping && this.isFalling) {
-                this.performAttack('JUMP_DOWN_ATTACK', 'JUMP_DOWN_ATTACK', 10, '#3399ff', 350, 'p-jdown-atk', 230);
-            } else if (this.cur.up.isDown) {
-                this.performAttack('UP_ATTACK',        'UP_ATTACK',        10, '#3399ff', 350, 'p-up-atk',    200);
-            } else {
-                this.performAttack('ATTACK',           'ATTACK',           10, '#3399ff', 350, 'p-attack1',   210);
+            if (this._useStamina(18)) {
+                if (this.isJumping && !this.isFalling) {
+                    this.performAttack('JUMP_UP_ATTACK',   'JUMP_UP_ATTACK',   10, '#3399ff', 350, 'p-jup-atk',   230);
+                } else if (this.isJumping && this.isFalling) {
+                    this.performAttack('JUMP_DOWN_ATTACK', 'JUMP_DOWN_ATTACK', 10, '#3399ff', 350, 'p-jdown-atk', 230);
+                } else if (this.cur.up.isDown) {
+                    this.performAttack('UP_ATTACK',        'UP_ATTACK',        10, '#3399ff', 350, 'p-up-atk',    200);
+                } else {
+                    this.performAttack('ATTACK',           'ATTACK',           10, '#3399ff', 350, 'p-attack1',   210);
+                }
             }
         }
 
         if (JD(this.kX) && !this.atkCooldown) {
-            this.performAttack('HEAVY_ATTACK', 'HEAVY_ATTACK', 18, '#6633ff', 550, 'p-attack3', 240);
+            if (this._useStamina(28)) {
+                this.performAttack('HEAVY_ATTACK', 'HEAVY_ATTACK', 18, '#6633ff', 550, 'p-attack3', 240);
+            }
         }
 
         if (JD(this.kC)) {
-            const dashDir = this.player.flipX ? 'DASH_LEFT' : 'DASH_RIGHT';
-            this.recordMove(dashDir);
-            this.profile.dashes++;
-            this.lastDodgeT     = this.time.now;
-            this._dashLockUntil = this.time.now + 200;
-            this.player.play('p-dash', true);
-            const dir = this.player.flipX ? -1 : 1;
-            this.player.setX(Phaser.Math.Clamp(this.player.x + dir * 110, 60, 760));
+            if (this._useStamina(20)) {
+                const dashDir = this.player.flipX ? 'DASH_LEFT' : 'DASH_RIGHT';
+                this.recordMove(dashDir);
+                this.profile.dashes++;
+                this.lastDodgeT     = this.time.now;
+                this._dashLockUntil = this.time.now + 200;
+                this.player.play('p-dash', true);
+                const dir = this.player.flipX ? -1 : 1;
+                this.player.setX(Phaser.Math.Clamp(this.player.x + dir * 110, 60, 760));
+            }
         }
 
         if (JD(this.kV) && !this.atkCooldown) {
-            this.performAttack('DASH_ATTACK', 'DASH_ATTACK', 14, '#ff9900', 450, 'p-dash-atk', 290);
-            const vDir = this.player.flipX ? -1 : 1;
-            this.player.setX(Phaser.Math.Clamp(this.player.x + vDir * 90, 60, 760));
+            if (this._useStamina(25)) {
+                this.performAttack('DASH_ATTACK', 'DASH_ATTACK', 14, '#ff9900', 450, 'p-dash-atk', 290);
+                const vDir = this.player.flipX ? -1 : 1;
+                this.player.setX(Phaser.Math.Clamp(this.player.x + vDir * 90, 60, 760));
+            }
         }
 
         if (JD(this.kA) && !this.atkCooldown) {
-            const sDashMove = this.player.flipX ? 'SPECIAL_DASH_LEFT' : 'SPECIAL_DASH_RIGHT';
-            this.lastDodgeT     = this.time.now;
-            this._dashLockUntil = this.time.now + 220;
-            this.profile.dashes++;
-            const dir2 = this.player.flipX ? -1 : 1;
-            // Trail at origin before moving
-            const trailX = this.player.x;
-            const trailY = this.player.y;
-            const trail = this.add.rectangle(trailX, trailY - 64, 12, 60, 0xaa00ff, 0.5);
-            this.tweens.add({ targets: trail, alpha: 0, scaleX: 3, duration: 400, onComplete: () => trail.destroy() });
-            // Snap to destination (no tween — avoids conflict with movement)
-            this.player.setX(Phaser.Math.Clamp(this.player.x + dir2 * 150, 60, 760));
-            this.performAttack('SPECIAL_DASH', sDashMove, 8, '#aa00ff', 450, 'p-special', 300);
+            if (this._useStamina(30)) {
+                const sDashMove = this.player.flipX ? 'SPECIAL_DASH_LEFT' : 'SPECIAL_DASH_RIGHT';
+                this.lastDodgeT     = this.time.now;
+                this._dashLockUntil = this.time.now + 220;
+                this.profile.dashes++;
+                const dir2 = this.player.flipX ? -1 : 1;
+                const trailX = this.player.x;
+                const trailY = this.player.y;
+                const trail = this.add.rectangle(trailX, trailY - 64, 12, 60, 0xaa00ff, 0.5);
+                this.tweens.add({ targets: trail, alpha: 0, scaleX: 3, duration: 400, onComplete: () => trail.destroy() });
+                this.player.setX(Phaser.Math.Clamp(this.player.x + dir2 * 150, 60, 760));
+                this.performAttack('SPECIAL_DASH', sDashMove, 8, '#aa00ff', 450, 'p-special', 300);
+            }
         }
     }
 
@@ -1274,6 +1296,23 @@ class GameScene extends Phaser.Scene {
         if (this.bHPBar) this.bHPBar.setSize(Math.max(1, 360 * (this.bossHP   / 220)),  16);
         if (this.pHPTxt) this.pHPTxt.setText(this.playerHP + '/100');
         if (this.bHPTxt) this.bHPTxt.setText(this.bossHP   + '/220');
+        if (this.staminaBar) {
+            const pct = this.stamina / this.maxStamina;
+            this.staminaBar.setSize(Math.max(1, 380 * pct), 7);
+            this.staminaBar.setFillStyle(pct > 0.5 ? 0x33ff66 : pct > 0.2 ? 0xffaa00 : 0xff3300);
+        }
+    }
+
+    // Returns true and deducts stamina; false + float text if not enough
+    _useStamina(cost) {
+        if (this.stamina < cost) {
+            this.floatText(this.player.x, this.player.y - 55, 'OUT OF STAMINA', '#ff6600');
+            return false;
+        }
+        this.stamina = Math.max(0, this.stamina - cost);
+        this._lastStaminaUse = this.time.now;
+        this.updateBars();
+        return true;
     }
 
     floatText(x, y, msg, color) {
