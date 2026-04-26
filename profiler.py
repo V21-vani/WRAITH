@@ -7,15 +7,15 @@ from collections import Counter, deque
 from typing import List, Dict, Any
 
 # Move classification — maps raw game moves to combat categories
-DODGE_LEFT_MOVES  = {"DODGE_LEFT", "DASH_LEFT", "SPECIAL_DASH_LEFT"}
-DODGE_RIGHT_MOVES = {"DODGE_RIGHT", "DASH_RIGHT", "SPECIAL_DASH_RIGHT"}
+DODGE_LEFT_MOVES  = {"DODGE_LEFT", "DASH_LEFT", "SPECIAL_DASH_LEFT", "MOVE_LEFT"}
+DODGE_RIGHT_MOVES = {"DODGE_RIGHT", "DASH_RIGHT", "SPECIAL_DASH_RIGHT", "MOVE_RIGHT"}
 DASH_MOVES        = {"DASH_LEFT", "DASH_RIGHT", "SPECIAL_DASH_LEFT", "SPECIAL_DASH_RIGHT"}
 ATTACK_MOVES      = {
     "ATTACK", "HEAVY_ATTACK",
     "JUMP_UP_ATTACK", "JUMP_DOWN_ATTACK",
     "UP_ATTACK", "DASH_ATTACK",
 }
-NEUTRAL_MOVES     = {"JUMP", "MOVE_LEFT", "MOVE_RIGHT", "WAIT"}
+NEUTRAL_MOVES     = {"JUMP", "WAIT"}
 
 
 def _classify(move: str) -> str:

@@ -221,12 +221,12 @@ def _build_reasoning(combo, profile: dict) -> str:
 
     atk_r  = profile.get("attack_rate", 0.0)
 
-    if dom == "DODGE_LEFT" and lb >= 60:
+    if dom == "LEFT" and lb >= 60:
         detail = (
             f"Subject dodges LEFT {lb}% of the time — a deeply ingrained reflex. "
             f"{combo.name} is calibrated to punish exactly this pattern."
         )
-    elif dom == "DODGE_RIGHT" and rb >= 60:
+    elif dom == "RIGHT" and rb >= 60:
         detail = (
             f"Subject favors RIGHT evasion at {rb}% — predictable and exploitable. "
             f"Deploying {combo.name} to feint left and punish the right-dodge reflex."
