@@ -44,7 +44,7 @@ class WraithPolicy:
         print(f"[WraithPolicy] Ready, token={'yes' if self.hf_token else 'no'}")
 
     def _call_api(self, model: str, profile_text: str) -> str:
-        url = f"https://api-inference.huggingface.co/models/{model}/v1/chat/completions"
+        url = f"https://router.huggingface.co/hf-inference/v1/chat/completions"
         headers = {"Authorization": f"Bearer {self.hf_token}"}
         payload = {
             "model": model,
