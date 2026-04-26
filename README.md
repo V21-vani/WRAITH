@@ -9,7 +9,7 @@
 | Resource | Link |
 |---|---|
 | HuggingFace Space (playable) | _Coming soon — deploy via Dockerfile_ |
-| Trained Model | _Push via Cell 8 in train_grpo.ipynb_ |
+| Trained Model | [notshakti/wraith-boss-ai](https://huggingface.co/notshakti/wraith-boss-ai) |
 | OpenEnv Manifest | [`openenv.yaml`](openenv.yaml) |
 
 ---
@@ -94,13 +94,18 @@ Fine-tuned on **500 synthetic episodes** across 5 player archetypes (left-heavy,
 
 | Metric | Step 10 | Step 110 | Step 320 | Step 750 |
 |---|---|---|---|---|
-| Reward mean | 2.36 | 4.89 | 5.92 | ~6.68 |
-| Reward std | 2.24 | 1.12 | 0.58 | ~0.33 |
-| KL divergence | ~0 | 0.04 | 0.12 | 0.18+ |
+| Reward mean | 2.26 | 5.73 | 7.43 | 7.02 |
+| Reward std | 2.33 | 1.55 | 2.67 | 2.39 |
+| KL divergence | 0.000014 | 0.039 | 0.244 | 0.190 |
 
-- Reward grew **183%** in 110 steps
-- Reward std **collapsed** — model converging on consistent strategies
-- KL divergence growing — model genuinely diverging from base, not overfitting
+**Evaluation vs baseline (50 episodes, left-heavy player):**
+- Hit Rate: 0.693 → **1.000** (+30.7%)
+- Mean Reward: 8.56 → **17.51** (+104%)
+- Win Rate: 0.960 → **1.000** (+4%)
+
+- Reward grew **210%** over 750 steps
+- KL divergence confirms genuine policy divergence from base model
+- Trained model achieves **100% hit rate and win rate** vs baseline
 
 ![Training Curves](wraith_training_curves.png)
 ![Policy vs Random](wraith_comparison.png)

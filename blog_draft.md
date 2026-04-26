@@ -88,6 +88,6 @@ The FastAPI server wraps this into HTTP endpoints so the game frontend can call 
 
 ---
 
-The full code, training notebook, and OpenEnv manifest are in the [GitHub repo](https://github.com/V21-vani/WRAITH).
+The full code, training notebook, and OpenEnv manifest are in the [GitHub repo](https://github.com/V21-vani/WRAITH). The trained model is live at [notshakti/wraith-boss-ai](https://huggingface.co/notshakti/wraith-boss-ai).
 
 WRAITH doesn't just fight. It learns. It adapts. It hunts.
