@@ -19,6 +19,7 @@ pinned: false
 |---|---|
 | HuggingFace Space (API) | [notshakti/wraith-env](https://huggingface.co/spaces/notshakti/wraith-env) |
 | Trained Model | [notshakti/wraith-boss-ai](https://huggingface.co/notshakti/wraith-boss-ai) |
+| Training Notebook (Kaggle) | [GRPO Training — Kaggle](https://www.kaggle.com/code/shaktivijayas/notebook20cb6f04fd) |
 | OpenEnv Manifest | [`openenv.yaml`](openenv.yaml) |
 
 ---
