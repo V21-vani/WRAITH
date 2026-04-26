@@ -429,81 +429,192 @@ class GameScene extends Phaser.Scene {
     }
 
     // ── Sidebar ──────────────────────────────────────────────────────────────
+    _updateSegBar(segs, pct) {
+        if (!segs) return;
+        const active = Math.round(pct / 100 * segs.length);
+        segs.forEach((s, i) => {
+            if (i < active) { s.setAlpha(i === active - 1 ? 1 : 0.85); }
+            else            { s.setAlpha(0.07); }
+        });
+    }
+
+    _makeSegBar(y, color, bgColor, n = 10) {
+        const sx = 838, gap = 2, w = 21, h = 10;
+        const segs = [];
+        for (let i = 0; i < n; i++) {
+            const bx = sx + i * (w + gap) + w / 2;
+            this.add.rectangle(bx, y, w, h, bgColor).setOrigin(0.5, 0.5);
+            segs.push(this.add.rectangle(bx, y, w, h, color).setOrigin(0.5, 0.5).setAlpha(0.07));
+        }
+        return segs;
+    }
+
     createSidebar() {
-        const sx = 830;
-        const lc = '#882233';
-        const vc = '#e8e0ff';
+        const cx = 960;
 
-        this.add.text(sx, 14, '⬡ WRAITH INTELLIGENCE', { fontFamily: 'monospace', fontSize: '12px', color: '#ff2233' });
-        this.add.text(sx, 30, '"Studying you since round 1."', { fontFamily: 'monospace', fontSize: '10px', color: '#550011', fontStyle: 'italic' });
-        this.add.rectangle(960, 48, 264, 1, 0x330011);
+        // ── Dark panel background ───────────────────────────────────────────
+        const bg = this.add.graphics();
+        bg.fillStyle(0x060009, 0.97);
+        bg.fillRect(828, 0, 264, 600);
+        bg.fillStyle(0x000004, 0.35);
+        bg.fillRect(828, 0, 264, 90);   // darker top gradient
+        for (let sy = 0; sy < 600; sy += 4) {
+            bg.fillStyle(0x000000, 0.06);
+            bg.fillRect(828, sy, 264, 1);
+        }
 
-        this.add.text(sx, 54, 'MOVEMENT BIAS', { fontFamily: 'monospace', fontSize: '10px', color: lc });
-        this.add.rectangle(sx, 72, 180, 9, 0x150006).setOrigin(0, 0.5);
-        this.lBiasBar = this.add.rectangle(sx, 72, 1, 9, 0xff2233).setOrigin(0, 0.5);
-        this.lBiasLbl = this.add.text(sx + 185, 67, 'LEFT  0%', { fontFamily: 'monospace', fontSize: '9px', color: '#ff6677' });
+        // ── Border & corner brackets ────────────────────────────────────────
+        const d = this.add.graphics();
+        d.lineStyle(1, 0x3a0010, 0.9); d.strokeRect(829, 1, 262, 598);
+        d.lineStyle(1, 0x1a0006, 0.5); d.strokeRect(833, 5, 254, 590);
 
-        this.add.rectangle(sx, 86, 180, 9, 0x150006).setOrigin(0, 0.5);
-        this.rBiasBar = this.add.rectangle(sx, 86, 1, 9, 0xff6600).setOrigin(0, 0.5);
-        this.rBiasLbl = this.add.text(sx + 185, 81, 'RIGHT 0%', { fontFamily: 'monospace', fontSize: '9px', color: '#ff8844' });
+        const br = (x1,y1, x2,y2, x3,y3) => {
+            d.lineStyle(2, 0xff1133, 0.85);
+            d.beginPath(); d.moveTo(x1,y1); d.lineTo(x2,y2); d.lineTo(x3,y3); d.strokePath();
+        };
+        br(829,22, 829,4,  848,4);      br(1072,22, 1072,4,  1053,4);
+        br(829,578,829,596,848,596);    br(1072,578,1072,596,1053,596);
 
-        this.add.text(sx, 100, 'ATTACK RATE', { fontFamily: 'monospace', fontSize: '10px', color: lc });
-        this.add.rectangle(sx, 114, 180, 9, 0x150006).setOrigin(0, 0.5);
-        this.atkRateBar = this.add.rectangle(sx, 114, 1, 9, 0x9933ff).setOrigin(0, 0.5);
-        this.atkRateLbl = this.add.text(sx + 185, 109, '0%', { fontFamily: 'monospace', fontSize: '9px', color: '#bb88ff' });
+        // Diagonal accent cut top-right
+        d.lineStyle(1, 0x550022, 0.55);
+        d.beginPath(); d.moveTo(1042,4); d.lineTo(1072,28); d.strokePath();
 
-        this.add.text(sx,       127, 'DASHES:', { fontFamily: 'monospace', fontSize: '9px', color: lc });
-        this.dashCntTxt = this.add.text(sx + 60,  127, '0',          { fontFamily: 'monospace', fontSize: '9px', color: vc });
-        this.add.text(sx + 100, 127, 'PANIC:',   { fontFamily: 'monospace', fontSize: '9px', color: lc });
-        this.panicTxt   = this.add.text(sx + 145, 127, '[ STABLE ]', { fontFamily: 'monospace', fontSize: '9px', color: '#33cc66' });
+        // ── Helper: section separator ───────────────────────────────────────
+        const sep = (y) => {
+            const sg = this.add.graphics();
+            sg.lineStyle(1, 0x2a0009, 0.9);
+            sg.beginPath(); sg.moveTo(834,y); sg.lineTo(1068,y); sg.strokePath();
+            sg.fillStyle(0x880033,1); sg.fillRect(958,y-2,4,4);
+        };
 
-        this.add.text(sx,       140, 'ROUNDS:', { fontFamily: 'monospace', fontSize: '9px', color: lc });
-        this.roundObsTxt = this.add.text(sx + 60,  140, '0',     { fontFamily: 'monospace', fontSize: '9px', color: vc });
-        this.add.text(sx + 100, 140, 'DOMINANT:', { fontFamily: 'monospace', fontSize: '9px', color: lc });
-        this.domTxt = this.add.text(sx + 172, 140, 'MIXED', { fontFamily: 'monospace', fontSize: '9px', color: vc });
+        // ── Helper: section header ──────────────────────────────────────────
+        const secHead = (y, label) => {
+            const hg = this.add.graphics();
+            hg.lineStyle(1, 0x3a0010, 0.6);
+            hg.beginPath(); hg.moveTo(834,y+5); hg.lineTo(836,y+5); hg.strokePath();
+            hg.beginPath(); hg.moveTo(836 + label.length*6+6, y+5); hg.lineTo(1068,y+5); hg.strokePath();
+            this.add.text(838, y, label, { fontFamily:'monospace', fontSize:'9px', color:'#cc1133', letterSpacing:2 });
+        };
 
-        this.add.text(sx,       153, 'AVG POS:', { fontFamily: 'monospace', fontSize: '9px', color: lc });
-        this.avgPosTxt  = this.add.text(sx + 60,  153, '180', { fontFamily: 'monospace', fontSize: '9px', color: vc });
-        this.add.text(sx + 100, 153, 'ATK/s:', { fontFamily: 'monospace', fontSize: '9px', color: lc });
-        this.atkFreqTxt = this.add.text(sx + 145, 153, '0.0', { fontFamily: 'monospace', fontSize: '9px', color: '#bb88ff' });
+        // ── WRAITH header ───────────────────────────────────────────────────
+        this.add.text(cx, 8, 'W · R · A · I · T · H', {
+            fontFamily:'monospace', fontSize:'14px', color:'#ff1133',
+            stroke:'#330000', strokeThickness:3
+        }).setOrigin(0.5, 0);
+        this.add.text(cx, 26, '— BEHAVIORAL ANALYSIS —', {
+            fontFamily:'monospace', fontSize:'8px', color:'#550018'
+        }).setOrigin(0.5, 0);
 
-        this.add.rectangle(960, 168, 264, 1, 0x330011);
+        sep(40);
 
-        this.add.text(sx, 174, 'WRAITH ANALYSIS:', { fontFamily: 'monospace', fontSize: '10px', color: lc });
-        this.analysisTxt = this.add.text(sx, 190, 'Initializing behavioral profile...', {
-            fontFamily: 'monospace', fontSize: '10px', color: '#cc3333', wordWrap: { width: 255 }, lineSpacing: 4
+        // ── MOVEMENT SIGNATURE ──────────────────────────────────────────────
+        secHead(46, 'MOVEMENT SIGNATURE');
+
+        this.add.text(838, 60, 'LEFT', { fontFamily:'monospace', fontSize:'8px', color:'#882233' });
+        this.lBiasLbl = this.add.text(1065, 60, '0%', { fontFamily:'monospace', fontSize:'8px', color:'#ff4455' }).setOrigin(1,0);
+        this._lBiasSegs = this._makeSegBar(73, 0xff1133, 0x1a0005);
+
+        this.add.text(838, 84, 'RIGHT', { fontFamily:'monospace', fontSize:'8px', color:'#885500' });
+        this.rBiasLbl = this.add.text(1065, 84, '0%', { fontFamily:'monospace', fontSize:'8px', color:'#ff8833' }).setOrigin(1,0);
+        this._rBiasSegs = this._makeSegBar(97, 0xff6600, 0x140800);
+
+        // Null out old bar refs so legacy setSize calls are no-ops
+        this.lBiasBar = null; this.rBiasBar = null; this.atkRateBar = null;
+
+        sep(109);
+
+        // ── COMBAT PROFILE ──────────────────────────────────────────────────
+        secHead(115, 'COMBAT PROFILE');
+
+        this.add.text(838, 129, 'ATK RATE', { fontFamily:'monospace', fontSize:'8px', color:'#882233' });
+        this.atkRateLbl = this.add.text(1065, 129, '0%', { fontFamily:'monospace', fontSize:'8px', color:'#bb88ff' }).setOrigin(1,0);
+        this._atkSegs = this._makeSegBar(142, 0x9900ff, 0x08000f);
+
+        // Stats grid (2×2 boxed layout)
+        const gg = this.add.graphics();
+        gg.fillStyle(0x07000c, 0.85); gg.fillRect(834,154, 236,54);
+        gg.lineStyle(1, 0x2a0009, 0.7); gg.strokeRect(834,154, 236,54);
+        gg.lineStyle(1, 0x1a0006, 0.5);
+        gg.beginPath(); gg.moveTo(952,154); gg.lineTo(952,208); gg.strokePath();
+        gg.beginPath(); gg.moveTo(834,181); gg.lineTo(1070,181); gg.strokePath();
+
+        this.add.text(840,157,'ROUNDS',  {fontFamily:'monospace',fontSize:'8px',color:'#550018'});
+        this.roundObsTxt = this.add.text(948,168,'0', {fontFamily:'monospace',fontSize:'11px',color:'#e8e0ff'}).setOrigin(1,0);
+        this.add.text(958,157,'DOMINANT',{fontFamily:'monospace',fontSize:'8px',color:'#550018'});
+        this.domTxt = this.add.text(1064,168,'MIXED',{fontFamily:'monospace',fontSize:'9px',color:'#886655'}).setOrigin(1,0);
+
+        this.add.text(840,184,'DASHES',  {fontFamily:'monospace',fontSize:'8px',color:'#550018'});
+        this.dashCntTxt = this.add.text(948,195,'0', {fontFamily:'monospace',fontSize:'11px',color:'#e8e0ff'}).setOrigin(1,0);
+        this.add.text(958,184,'PANIC',   {fontFamily:'monospace',fontSize:'8px',color:'#550018'});
+        this.panicTxt = this.add.text(1064,195,'STABLE',{fontFamily:'monospace',fontSize:'9px',color:'#00ff88'}).setOrigin(1,0);
+
+        // ATK/s row below grid
+        this.add.text(838,212,'ATK/s',{fontFamily:'monospace',fontSize:'8px',color:'#550018'});
+        this.atkFreqTxt = this.add.text(878,212,'0.0',{fontFamily:'monospace',fontSize:'8px',color:'#bb88ff'});
+        this.avgPosTxt  = this.add.text(920,212,'POS:180',{fontFamily:'monospace',fontSize:'8px',color:'#443344'});
+
+        sep(224);
+
+        // ── THREAT ASSESSMENT ───────────────────────────────────────────────
+        secHead(230, 'THREAT ASSESSMENT');
+
+        // Analysis text box with red left accent bar
+        const ab = this.add.graphics();
+        ab.fillStyle(0x040007,0.9); ab.fillRect(834,244,236,118);
+        ab.lineStyle(1,0x2a0009,0.6); ab.strokeRect(834,244,236,118);
+        ab.fillStyle(0xff1133,1); ab.fillRect(834,244,3,118);
+
+        this.analysisTxt = this.add.text(842, 249, 'Initializing behavioral profile...', {
+            fontFamily:'monospace', fontSize:'9px', color:'#cc2244',
+            wordWrap:{ width: 218 }, lineSpacing:5
         });
 
-        this.add.rectangle(960, 370, 264, 1, 0x330011);
-        this.atkLblBg  = this.add.rectangle(960, 392, 264, 28, 0x0d0005).setAlpha(0);
-        this.atkLblTxt = this.add.text(960, 392, '', { fontFamily: 'monospace', fontSize: '12px', color: '#ff2233', align: 'center' }).setOrigin(0.5).setAlpha(0);
+        sep(370);
 
-        this.ptrnBg  = this.add.rectangle(960, 425, 264, 28, 0x330000).setAlpha(0);
-        this.ptrnTxt = this.add.text(960, 425, '⚡ PATTERN LOCKED', { fontFamily: 'monospace', fontSize: '13px', color: '#ff2233' }).setOrigin(0.5).setAlpha(0);
+        // ── PREDICTED STRIKE box ────────────────────────────────────────────
+        const nb = this.add.graphics();
+        nb.fillStyle(0x0b0002,1); nb.fillRect(834,378,236,50);
+        nb.lineStyle(1,0x440011,0.8); nb.strokeRect(834,378,236,50);
+        // Corner accents
+        nb.lineStyle(2,0xff1133,0.9);
+        nb.beginPath(); nb.moveTo(834,392); nb.lineTo(834,378); nb.lineTo(850,378); nb.strokePath();
+        nb.beginPath(); nb.moveTo(1070,392);nb.lineTo(1070,378);nb.lineTo(1054,378);nb.strokePath();
+        nb.beginPath(); nb.moveTo(834,414); nb.lineTo(834,428); nb.lineTo(850,428); nb.strokePath();
+        nb.beginPath(); nb.moveTo(1070,414);nb.lineTo(1070,428);nb.lineTo(1054,428);nb.strokePath();
 
-        this.add.rectangle(960, 460, 264, 1, 0x330011);
-        this.add.text(sx, 466, 'CONTROLS', { fontFamily: 'monospace', fontSize: '10px', color: lc });
+        this.add.text(cx,381,'▸  PREDICTED STRIKE',{fontFamily:'monospace',fontSize:'8px',color:'#440011'}).setOrigin(0.5,0);
+        this.atkLblTxt = this.add.text(cx,396,'—',{
+            fontFamily:'monospace',fontSize:'14px',color:'#ff2233',
+            stroke:'#220000',strokeThickness:2,align:'center'
+        }).setOrigin(0.5,0).setAlpha(0);
+        this.atkLblBg = this.add.rectangle(cx,403,236,50,0x000000,0); // compat dummy
 
-        const controls = [
-            ['← →',     'Move / Run'],
-            ['SPACE',    'Jump'],
-            ['Z',        'Basic Attack'],
-            ['X',        'Heavy Attack'],
-            ['C',        'Dash (dir)'],
-            ['V',        'Dash Attack'],
-            ['A',        'Special Dash'],
-            ['↑ + Z',    'Up Attack'],
-            ['Z (air↑)', 'Jump Up Atk'],
-            ['Z (air↓)', 'Jump Down Atk'],
+        // Pattern locked banner
+        this.ptrnBg  = this.add.rectangle(cx,444,236,20,0x1f0000).setAlpha(0);
+        this.ptrnTxt = this.add.text(cx,444,'⚡  PATTERN LOCKED',{
+            fontFamily:'monospace',fontSize:'10px',color:'#ff2233',
+            stroke:'#000',strokeThickness:2
+        }).setOrigin(0.5).setAlpha(0);
+
+        sep(460);
+
+        // ── CONTROLS (compact 2-column) ─────────────────────────────────────
+        this.add.text(cx,464,'CONTROLS',{fontFamily:'monospace',fontSize:'8px',color:'#3a0010',letterSpacing:3}).setOrigin(0.5,0);
+
+        const ctrl = [
+            ['←→','Move'], ['SPC','Jump'], ['Z','Attack'],
+            ['X','Heavy'], ['C','Dash'],   ['V','Dash Atk'], ['A','Special'],
         ];
-        controls.forEach(([key, desc], i) => {
-            const y = 480 + i * 12;
-            this.add.text(sx,      y, key,  { fontFamily: 'monospace', fontSize: '9px', color: '#ff9900' });
-            this.add.text(sx + 72, y, desc, { fontFamily: 'monospace', fontSize: '9px', color: '#886688' });
+        ctrl.forEach(([k,v],i) => {
+            const col = i % 2, row = Math.floor(i / 2);
+            const kx = col === 0 ? 840 : 960;
+            const y  = 477 + row * 16;
+            const kb = this.add.graphics();
+            kb.fillStyle(0x160008,0.8); kb.fillRect(kx,y,30,12);
+            kb.lineStyle(1,0x330011,0.5); kb.strokeRect(kx,y,30,12);
+            this.add.text(kx+15,y+6,k,{fontFamily:'monospace',fontSize:'8px',color:'#ff6622'}).setOrigin(0.5,0.5);
+            this.add.text(kx+34,y,v, {fontFamily:'monospace',fontSize:'8px',color:'#442233'});
         });
-
-        for (let y = 0; y < 600; y += 4)
-            this.add.rectangle(960, y, 264, 1, 0x000000, 0.12);
     }
 
     createControls() {
@@ -522,6 +633,12 @@ class GameScene extends Phaser.Scene {
             if (this.gameOver || this._isDestroyed) return;
             if (this.wraithActing) {
                 this.time.delayedCall(400, loop);
+                return;
+            }
+            // Only attack when close enough — otherwise wait and chase
+            const dist = Math.abs(this.wraith.x - this.player.x);
+            if (dist > 255) {
+                this.time.delayedCall(350, loop);
                 return;
             }
             const name = this._selectPattern();
@@ -645,14 +762,14 @@ class GameScene extends Phaser.Scene {
         const rb = 100 - lb;
         const ar = Math.round(am / total * 100);
 
-        if (this.lBiasBar)   this.lBiasBar.setSize(Math.max(1, lb * 1.8), 9);
-        if (this.rBiasBar)   this.rBiasBar.setSize(Math.max(1, rb * 1.8), 9);
-        if (this.lBiasLbl)   this.lBiasLbl.setText('LEFT  ' + lb + '%');
-        if (this.rBiasLbl)   this.rBiasLbl.setText('RIGHT ' + rb + '%');
-        if (this.atkRateBar) this.atkRateBar.setSize(Math.max(1, ar * 1.8), 9);
+        this._updateSegBar(this._lBiasSegs, lb);
+        this._updateSegBar(this._rBiasSegs, rb);
+        this._updateSegBar(this._atkSegs, ar);
+        if (this.lBiasLbl)   this.lBiasLbl.setText(lb + '%');
+        if (this.rBiasLbl)   this.rBiasLbl.setText(rb + '%');
         if (this.atkRateLbl) this.atkRateLbl.setText(ar + '%');
         if (this.dashCntTxt) this.dashCntTxt.setText(String(this.profile.dashes));
-        if (this.avgPosTxt)  this.avgPosTxt.setText(Math.round(this.profile.avg_position).toString());
+        if (this.avgPosTxt)  this.avgPosTxt.setText('POS:' + Math.round(this.profile.avg_position));
         if (this.atkFreqTxt) this.atkFreqTxt.setText(this.profile.attack_frequency.toFixed(1));
         if (this.roundObsTxt) this.roundObsTxt.setText(String(total));
 
@@ -660,11 +777,11 @@ class GameScene extends Phaser.Scene {
         let dom = 'MIXED';
         if (lb >= 60) dom = 'LEFT';
         else if (rb >= 60) dom = 'RIGHT';
-        if (this.domTxt) this.domTxt.setText(dom);
+        if (this.domTxt) this.domTxt.setText(dom).setColor(dom === 'LEFT' ? '#ff4455' : dom === 'RIGHT' ? '#ff8833' : '#886655');
 
         // Panic: player HP < 25
         const panic = this.playerHP < 25;
-        if (this.panicTxt) this.panicTxt.setText(panic ? '[ ACTIVE ]' : '[ STABLE ]').setColor(panic ? '#ff2233' : '#33cc66');
+        if (this.panicTxt) this.panicTxt.setText(panic ? 'ACTIVE' : 'STABLE').setColor(panic ? '#ff2233' : '#00ff88');
 
         // Live predicted next attack — updates instantly as you move
         const predicted = this._predictNextAttack(lb, rb, ar, panic, total);
@@ -820,19 +937,20 @@ class GameScene extends Phaser.Scene {
         const ar      = Math.round(prof.attack_rate ?? 0);
         const dashes  = prof.total_dashes ?? 0;
 
-        if (this.lBiasBar)  this.lBiasBar.setSize(Math.max(1, lb * 1.8), 9);
-        if (this.rBiasBar)  this.rBiasBar.setSize(Math.max(1, rb * 1.8), 9);
-        if (this.lBiasLbl)  this.lBiasLbl.setText('LEFT  ' + lb + '%');
-        if (this.rBiasLbl)  this.rBiasLbl.setText('RIGHT ' + rb + '%');
-        if (this.atkRateBar) this.atkRateBar.setSize(Math.max(1, ar * 1.8), 9);
+        this._updateSegBar(this._lBiasSegs, lb);
+        this._updateSegBar(this._rBiasSegs, rb);
+        this._updateSegBar(this._atkSegs, ar);
+        if (this.lBiasLbl)  this.lBiasLbl.setText(lb + '%');
+        if (this.rBiasLbl)  this.rBiasLbl.setText(rb + '%');
         if (this.atkRateLbl) this.atkRateLbl.setText(ar + '%');
         if (this.dashCntTxt) this.dashCntTxt.setText(String(dashes));
 
         const panic = !!prof.is_panicking;
-        if (this.panicTxt) this.panicTxt.setText(panic ? '[ ACTIVE ]' : '[ STABLE ]').setColor(panic ? '#ff2233' : '#33cc66');
+        if (this.panicTxt) this.panicTxt.setText(panic ? 'ACTIVE' : 'STABLE').setColor(panic ? '#ff2233' : '#00ff88');
         if (this.roundObsTxt) this.roundObsTxt.setText(String(this.round));
-        if (this.domTxt) this.domTxt.setText(prof.dominant_dodge || 'MIXED');
-        if (this.avgPosTxt)  this.avgPosTxt.setText(Math.round(this.profile.avg_position).toString());
+        const domV = prof.dominant_dodge || 'MIXED';
+        if (this.domTxt) this.domTxt.setText(domV).setColor(domV === 'LEFT' ? '#ff4455' : domV === 'RIGHT' ? '#ff8833' : '#886655');
+        if (this.avgPosTxt)  this.avgPosTxt.setText('POS:' + Math.round(this.profile.avg_position));
         if (this.atkFreqTxt) this.atkFreqTxt.setText(this.profile.attack_frequency.toFixed(1));
 
         if (lb > 80 || rb > 80) {
