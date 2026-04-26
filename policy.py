@@ -1,5 +1,5 @@
 # policy.py
-# Uses HuggingFace Inference API to call the trained WRAITH model.
+# Uses Groq API (free, fast) to run the WRAITH LLM policy.
 
 import os
 import json
@@ -29,52 +29,40 @@ Study the player profile and respond ONLY in JSON:
 
 VALID_COMBOS = set(COMBOS.keys())
 
-MODELS_TO_TRY = [
-    "notshakti/wraith-boss-ai",
-    "Qwen/Qwen2.5-1.5B-Instruct",
-    "HuggingFaceH4/zephyr-7b-beta",
-]
-
 
 class WraithPolicy:
     def __init__(self, model_name: str = "notshakti/wraith-boss-ai"):
-        self.model_name = model_name
-        self.hf_token = os.environ.get("HF_TOKEN", "")
-        self._loaded = bool(self.hf_token)
-        print(f"[WraithPolicy] Ready, token={'yes' if self.hf_token else 'no'}")
-
-    def _call_api(self, model: str, profile_text: str) -> str:
-        url = f"https://api-inference.huggingface.co/v1/chat/completions"
-        headers = {"Authorization": f"Bearer {self.hf_token}"}
-        payload = {
-            "model": model,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user",   "content": profile_text},
-            ],
-            "max_tokens": 220,
-            "temperature": 0.8,
-        }
-        resp = requests.post(url, headers=headers, json=payload, timeout=15)
-        print(f"[WraithPolicy] {model} → {resp.status_code}")
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"]
+        self.groq_token = os.environ.get("GROQ_API_KEY", "")
+        self._loaded = bool(self.groq_token)
+        print(f"[WraithPolicy] Groq ready: {'yes' if self._loaded else 'no token'}")
 
     def generate(self, profile_text: str, num_samples: int = 1) -> list:
         if not self._loaded:
-            return ['{"combo": "PHANTOM_RUSH", "reasoning": "No token."}']
+            return ['{"combo": "PHANTOM_RUSH", "reasoning": "No Groq token."}']
 
         results = []
         for _ in range(num_samples):
-            for model in MODELS_TO_TRY:
-                try:
-                    text = self._call_api(model, profile_text)
-                    print(f"[WraithPolicy] Success via {model}")
-                    results.append(text)
-                    break
-                except Exception as e:
-                    print(f"[WraithPolicy] {model} failed: {e}")
-            else:
+            try:
+                resp = requests.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {self.groq_token}"},
+                    json={
+                        "model": "llama-3.1-8b-instant",
+                        "messages": [
+                            {"role": "system", "content": SYSTEM_PROMPT},
+                            {"role": "user",   "content": profile_text},
+                        ],
+                        "max_tokens": 220,
+                        "temperature": 0.8,
+                    },
+                    timeout=10,
+                )
+                print(f"[WraithPolicy] Groq → {resp.status_code}")
+                resp.raise_for_status()
+                text = resp.json()["choices"][0]["message"]["content"]
+                results.append(text)
+            except Exception as e:
+                print(f"[WraithPolicy] Groq failed: {e}")
                 results.append('{"combo": "PHANTOM_RUSH", "reasoning": "LLM unavailable."}')
         return results
 
