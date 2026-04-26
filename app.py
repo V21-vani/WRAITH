@@ -219,15 +219,35 @@ def _build_reasoning(combo, profile: dict) -> str:
     panic  = profile.get("is_panicking", False)
     rounds = profile.get("rounds", 0)
 
-    base = (
-        f"Deploying {combo.name} (threat {combo.threat_level}/5). "
-        f"Pattern analysis over {rounds} moves — "
-        f"dominant dodge: {dom} (left {lb}%, right {rb}%). "
-        f"Confidence: {conf}."
-    )
-    if panic:
-        base += " Subject is panicking — pattern exploitation window is fully open."
-    return base
+    atk_r  = profile.get("attack_rate", 0.0)
+
+    if dom == "DODGE_LEFT" and lb >= 60:
+        detail = (
+            f"Subject dodges LEFT {lb}% of the time — a deeply ingrained reflex. "
+            f"{combo.name} is calibrated to punish exactly this pattern."
+        )
+    elif dom == "DODGE_RIGHT" and rb >= 60:
+        detail = (
+            f"Subject favors RIGHT evasion at {rb}% — predictable and exploitable. "
+            f"Deploying {combo.name} to feint left and punish the right-dodge reflex."
+        )
+    elif panic:
+        detail = (
+            f"Subject is PANICKING — erratic movement across {rounds} inputs. "
+            f"Panic exploitation window fully open. {combo.name} maximizes pressure."
+        )
+    elif atk_r > 0.4:
+        detail = (
+            f"Subject is attack-heavy ({int(atk_r*100)}% attacks). "
+            f"Baiting aggression and countering with {combo.name}."
+        )
+    else:
+        detail = (
+            f"Mixed profile over {rounds} moves (left {lb}%, right {rb}%). "
+            f"Deploying {combo.name} as a probing attack to force a readable pattern."
+        )
+
+    return f"[WRAITH] {detail} Threat {combo.threat_level}/5. Confidence: {conf}."
 
 
 if __name__ == "__main__":
