@@ -128,7 +128,7 @@ class GameScene extends Phaser.Scene {
 
         // Arena backgrounds (one per level)
         for (let i = 1; i <= 5; i++) {
-            this.load.image('arena' + i, `assets/backgrounds/game_arenas${i}.png`);
+            this.load.image('arena' + i, `assets/backgrounds/game_arenas${i}.jpg.jpeg`);
         }
     }
 
