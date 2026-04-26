@@ -135,30 +135,32 @@ class GameScene extends Phaser.Scene {
     // ── Attack patterns used by the autonomous wraith loop ─────────────────
     get ATTACK_PATTERNS() {
         return {
-            SWEEP_LEFT:  { anim: 'w-attack1', damage: 18, telegraph: 260, color: 0xff2233, label: '⚡ SWEEPING LEFT' },
-            FEINT_RIGHT: { anim: 'w-attack2', damage: 16, telegraph: 200, color: 0xff6600, label: '⚡ FEINTING RIGHT' },
-            OVERHEAD:    { anim: 'w-attack1', damage: 25, telegraph: 340, color: 0xcc00ff, label: '⚡ OVERHEAD CRASH' },
-            DASH_STRIKE: { anim: 'w-dash',    damage: 22, telegraph: 180, color: 0xff4400, label: '⚡ DASH STRIKE' },
-            COMBO_2HIT:  { anim: 'w-attack1', damage: 14, telegraph: 140, color: 0xffaa00, label: '⚡ COMBO STRIKE' },
-            PHASE_BLINK: { anim: 'w-dash',    damage: 20, telegraph: 420, color: 0x9900ff, label: '⚡ PHASE BLINK' },
+            SWEEP_LEFT:  { anim: 'w-attack1', damage: 30, telegraph: 220, color: 0xff2233, label: '⚡ SWEEPING LEFT' },
+            FEINT_RIGHT: { anim: 'w-attack2', damage: 26, telegraph: 175, color: 0xff6600, label: '⚡ FEINTING RIGHT' },
+            OVERHEAD:    { anim: 'w-attack1', damage: 42, telegraph: 280, color: 0xcc00ff, label: '⚡ OVERHEAD CRASH' },
+            DASH_STRIKE: { anim: 'w-dash',    damage: 36, telegraph: 150, color: 0xff4400, label: '⚡ DASH STRIKE' },
+            COMBO_2HIT:  { anim: 'w-attack1', damage: 22, telegraph: 120, color: 0xffaa00, label: '⚡ COMBO STRIKE' },
+            PHASE_BLINK: { anim: 'w-dash',    damage: 34, telegraph: 340, color: 0x9900ff, label: '⚡ PHASE BLINK' },
         };
     }
 
     create() {
         // Core game state
-        this.level        = 1;
-        this._maxBossHP   = 220;
+        this._maxBossHP   = 2000;
         this._wraithLoopId = 0;
-        this.playerHP     = 100;
-        this.bossHP       = 220;
-        this.stamina      = 100;
-        this.maxStamina   = 100;
+        this.playerHP     = 1000;
+        this.bossHP       = 2000;
+        this.maxStamina   = 240;
+        this.stamina      = 240;
         this._lastStaminaUse = -9999;
-        this.round        = 1;
+        this.round        = 1;   // used as phase (1–5)
+        this._phaseTriggered = [false, false, false, false]; // thresholds at 400,300,200,100
         this.moveBuf      = [];
         this.gameOver     = false;
         this.atkCooldown  = false;
         this.wraithActing = false;
+        this._roundTransition = false;
+        this._playerLocked = false;
         this._isDestroyed = false;
         this._activeAttackTimer = null;
 
@@ -200,10 +202,9 @@ class GameScene extends Phaser.Scene {
         this.createSidebar();
         this.createControls();
 
-        // Start autonomous loops — none are tied to turn gates
+        // Start autonomous loops
         this._startWraithLoop();
         this._startApiLoop();
-        this._startRoundLoop();
         this._startTeleportLoop();
 
         this.showRoundBanner(1);
@@ -278,9 +279,8 @@ class GameScene extends Phaser.Scene {
     // ── Background — level-specific arena image + atmospheric overlays ────────
     createBackground() {
         // Arena image — fills the 820×600 play area; swapped each level
-        this._bgSprite = this.add.image(0, 0, 'arena1')
-            .setOrigin(0, 0)
-            .setDisplaySize(ARENA_WIDTH, 600);
+        this._bgSprite = this.add.image(ARENA_WIDTH / 2, 300, 'arena1')
+            .setOrigin(0.5, 0.5);
 
         // Dark vignette: keeps the image moody and improves sprite readability
         const g = this.add.graphics();
@@ -331,7 +331,7 @@ class GameScene extends Phaser.Scene {
             }
         });
 
-        this.wraithGY  = GROUND_Y - 35;
+        this.wraithGY  = GROUND_Y;
         // Fixed aura: smaller radius, closer to ground, barely visible
         this.wraithAura = this.add.circle(680, this.wraithGY - 10, 35, 0xff0011, 0.07);
 
@@ -353,35 +353,92 @@ class GameScene extends Phaser.Scene {
         });
     }
 
-    // ── HUD — no turn timer, no turn badge, add status line ─────────────────
+    // ── HUD — AAA pixel-game styled header panel ─────────────────────────────
     createHUD() {
-        this.add.rectangle(14,  22, 380, 16, 0x1a0000).setOrigin(0, 0.5);
-        this.add.rectangle(438, 22, 360, 16, 0x00001a).setOrigin(0, 0.5);
+        // Dark panel backing the whole HUD strip
+        const hg = this.add.graphics();
+        hg.fillStyle(0x000000, 0.75);
+        hg.fillRect(0, 0, ARENA_WIDTH, 84);
+        // Bottom border with red corner accents
+        hg.lineStyle(1, 0x220008, 0.85);
+        hg.beginPath(); hg.moveTo(0, 84); hg.lineTo(ARENA_WIDTH, 84); hg.strokePath();
+        hg.lineStyle(2, 0xff1133, 0.45);
+        hg.beginPath(); hg.moveTo(0, 84); hg.lineTo(28, 84); hg.strokePath();
+        hg.beginPath(); hg.moveTo(ARENA_WIDTH - 28, 84); hg.lineTo(ARENA_WIDTH, 84); hg.strokePath();
 
-        this.pHPBar = this.add.rectangle(14,  22, 380, 16, 0x2266ff).setOrigin(0, 0.5);
-        this.bHPBar = this.add.rectangle(438, 22, 360, 16, 0xff2233).setOrigin(0, 0.5);
+        // ── Player (left) ─────────────────────────────────────────────────────
+        this.add.text(10, 7, 'HUNTER', {
+            fontFamily: 'monospace', fontSize: '10px', color: '#4499ff', letterSpacing: 3
+        });
 
-        const b = this.add.graphics();
-        b.lineStyle(1, 0x334455, 0.5); b.strokeRect(14,  14, 380, 16);
-        b.lineStyle(1, 0x553344, 0.5); b.strokeRect(438, 14, 360, 16);
+        // HP bar background + bar
+        this.add.rectangle(10, 30, 350, 13, 0x060616).setOrigin(0, 0.5);
+        this.pHPBar = this.add.rectangle(10, 30, 350, 13, 0x2266ff).setOrigin(0, 0.5);
+        const pb = this.add.graphics();
+        pb.lineStyle(1, 0x224477, 0.7); pb.strokeRect(10, 23, 350, 13);
+        // Tick marks on bar
+        for (let i = 1; i < 4; i++) {
+            pb.lineStyle(1, 0x112233, 0.5);
+            pb.beginPath(); pb.moveTo(10 + 350 * i / 4, 23); pb.lineTo(10 + 350 * i / 4, 36); pb.strokePath();
+        }
 
-        this.add.text(14,  6, 'HUNTER', { fontFamily: 'monospace', fontSize: '10px', color: '#3399ff' });
-        this.add.text(794, 6, 'WRAITH', { fontFamily: 'monospace', fontSize: '10px', color: '#ff2233' }).setOrigin(1, 0);
+        this.pHPTxt = this.add.text(10, 40, '1000/1000', {
+            fontFamily: 'monospace', fontSize: '9px', color: '#6699cc'
+        });
 
-        this.roundTxt  = this.add.text(410, 6, 'ROUND 1', { fontFamily: 'monospace', fontSize: '12px', color: '#e8e0ff' }).setOrigin(0.5, 0);
-        this.levelTxt  = this.add.text(410, 20, '— LEVEL 1 —', { fontFamily: 'monospace', fontSize: '9px', color: '#ff6622' }).setOrigin(0.5, 0);
-        this.pHPTxt    = this.add.text(14,  30, '100/100', { fontFamily: 'monospace', fontSize: '9px', color: '#7799cc' });
-        this.bHPTxt    = this.add.text(794, 30, '220/220', { fontFamily: 'monospace', fontSize: '9px', color: '#cc7788' }).setOrigin(1, 0);
+        // ── Boss (right) ──────────────────────────────────────────────────────
+        this.add.text(810, 7, 'WRAITH', {
+            fontFamily: 'monospace', fontSize: '10px', color: '#ff2233', letterSpacing: 3
+        }).setOrigin(1, 0);
 
-        // Stamina bar
-        this.add.rectangle(14, 41, 380, 7, 0x001a00).setOrigin(0, 0.5);
-        this.staminaBar = this.add.rectangle(14, 41, 380, 7, 0x33ff66).setOrigin(0, 0.5);
-        this.add.text(14, 46, 'STAMINA', { fontFamily: 'monospace', fontSize: '8px', color: '#226633' });
+        // Boss HP bar bg + bar (x=460 → x=810, width=350)
+        this.add.rectangle(460, 30, 350, 13, 0x160606).setOrigin(0, 0.5);
+        this.bHPBar = this.add.rectangle(460, 30, 350, 13, 0xff2233).setOrigin(0, 0.5);
+        const bb2 = this.add.graphics();
+        bb2.lineStyle(1, 0x772244, 0.7); bb2.strokeRect(460, 23, 350, 13);
+        // Phase threshold markers — 4 lines dividing bar into 5 equal segments
+        for (let i = 1; i < 5; i++) {
+            const mx = 460 + Math.round(350 * i / 5);
+            bb2.lineStyle(2, 0x880022, 0.9);
+            bb2.beginPath(); bb2.moveTo(mx, 22); bb2.lineTo(mx, 36); bb2.strokePath();
+            // Small diamond at top of each marker
+            bb2.fillStyle(0xff1133, 0.85);
+            bb2.fillRect(mx - 2, 21, 4, 4);
+        }
 
-        // Persistent wraith action status (replaces the turn badge + countdown)
-        this.statusTxt = this.add.text(410, 52, '◈ OBSERVING', {
-            fontFamily: 'monospace', fontSize: '11px', color: '#880022', stroke: '#000', strokeThickness: 2
-        }).setOrigin(0.5);
+        this.bHPTxt = this.add.text(810, 40, '2000/2000', {
+            fontFamily: 'monospace', fontSize: '9px', color: '#cc5566'
+        }).setOrigin(1, 0);
+
+        // ── Centre: Round + Level ─────────────────────────────────────────────
+        this.roundTxt = this.add.text(410, 6, 'ROUND 1', {
+            fontFamily: 'monospace', fontSize: '14px', color: '#e8e0ff',
+            stroke: '#000000', strokeThickness: 2
+        }).setOrigin(0.5, 0);
+
+        this.levelTxt = this.add.text(410, 22, '— PHASE  1 / 5 —', {
+            fontFamily: 'monospace', fontSize: '9px', color: '#ff6622'
+        }).setOrigin(0.5, 0);
+
+        // Status text (centre, below level label)
+        this.statusTxt = this.add.text(410, 37, '◈ OBSERVING', {
+            fontFamily: 'monospace', fontSize: '10px', color: '#880022',
+            stroke: '#000000', strokeThickness: 2
+        }).setOrigin(0.5, 0);
+
+        // ── Stamina bar (full-width, bottom of panel) ─────────────────────────
+        this.add.text(10, 54, 'STAMINA', {
+            fontFamily: 'monospace', fontSize: '8px', color: '#1a5530'
+        });
+        this.add.rectangle(10, 68, 800, 9, 0x001400).setOrigin(0, 0.5);
+        this.staminaBar = this.add.rectangle(10, 68, 800, 9, 0x33ff66).setOrigin(0, 0.5);
+        const sg = this.add.graphics();
+        sg.lineStyle(1, 0x0d3320, 0.7); sg.strokeRect(10, 63, 800, 9);
+        // Tick marks every 25%
+        for (let i = 1; i < 4; i++) {
+            sg.lineStyle(1, 0x062210, 0.6);
+            sg.beginPath(); sg.moveTo(10 + 800 * i / 4, 63); sg.lineTo(10 + 800 * i / 4, 72); sg.strokePath();
+        }
     }
 
     // ── Sidebar ──────────────────────────────────────────────────────────────
@@ -554,22 +611,57 @@ class GameScene extends Phaser.Scene {
 
         sep(460);
 
-        // ── CONTROLS (compact 2-column) ─────────────────────────────────────
-        this.add.text(cx,464,'CONTROLS',{fontFamily:'monospace',fontSize:'8px',color:'#3a0010',letterSpacing:3}).setOrigin(0.5,0);
+        // ── CONTROLS ────────────────────────────────────────────────────────
+        this.add.text(cx, 462, 'C O N T R O L S', {
+            fontFamily:'monospace', fontSize:'9px', color:'#dd1144', letterSpacing: 3
+        }).setOrigin(0.5, 0);
 
+        // Thin divider under header
+        const cg = this.add.graphics();
+        cg.lineStyle(1, 0x440011, 0.6);
+        cg.beginPath(); cg.moveTo(836, 474); cg.lineTo(1068, 474); cg.strokePath();
+
+        // Two-column layout: left col x=836, right col x=952
         const ctrl = [
-            ['←→','Move'], ['SPC','Jump'], ['Z','Attack'],
-            ['X','Heavy'], ['C','Dash'],   ['V','Dash Atk'], ['A','Special'],
+            // [key, label, col]
+            ['←  →',  'Move',     0],
+            ['SPC',   'Jump',     1],
+            ['Z',     'Attack',   0],
+            ['X',     'Heavy',    1],
+            ['C',     'Dash',     0],
+            ['V',     'Dash Atk', 1],
+            ['A',     'Special',  0],
         ];
-        ctrl.forEach(([k,v],i) => {
-            const col = i % 2, row = Math.floor(i / 2);
-            const kx = col === 0 ? 840 : 960;
-            const y  = 477 + row * 16;
+
+        const colX   = [836, 952];
+        const startY = 480;
+        const rowH   = 18;
+        const capW   = 36;
+        const capH   = 14;
+        // Track row per column
+        const rowIdx = [0, 0];
+
+        ctrl.forEach(([k, v, col]) => {
+            const x = colX[col];
+            const y = startY + rowIdx[col] * rowH;
+            rowIdx[col]++;
+
+            // Key cap background + border
             const kb = this.add.graphics();
-            kb.fillStyle(0x160008,0.8); kb.fillRect(kx,y,30,12);
-            kb.lineStyle(1,0x330011,0.5); kb.strokeRect(kx,y,30,12);
-            this.add.text(kx+15,y+6,k,{fontFamily:'monospace',fontSize:'8px',color:'#ff6622'}).setOrigin(0.5,0.5);
-            this.add.text(kx+34,y,v, {fontFamily:'monospace',fontSize:'8px',color:'#442233'});
+            kb.fillStyle(0x3d0018, 1);
+            kb.fillRect(x, y, capW, capH);
+            kb.lineStyle(1, 0xff2244, 0.7);
+            kb.strokeRect(x, y, capW, capH);
+
+            // Key text (centred in cap)
+            this.add.text(x + capW / 2, y + capH / 2, k, {
+                fontFamily: 'monospace', fontSize: '8px', color: '#ff9955'
+            }).setOrigin(0.5, 0.5);
+
+            // Action label (right of cap, vertically centred)
+            this.add.text(x + capW + 5, y + capH / 2, v, {
+                fontFamily: 'monospace', fontSize: '8px', color: '#e8d0d8'
+            }).setOrigin(0, 0.5);
         });
     }
 
@@ -588,24 +680,24 @@ class GameScene extends Phaser.Scene {
         const myId = ++this._wraithLoopId;
         const loop = () => {
             if (this.gameOver || this._isDestroyed || this._wraithLoopId !== myId) return;
-            if (this.wraithActing) {
+            if (this.wraithActing || this._roundTransition) {
                 this.time.delayedCall(400, loop);
                 return;
             }
-            // Only attack when close enough — otherwise wait and chase
+            // Only attack when close enough — otherwise chase
             const dist = Math.abs(this.wraith.x - this.player.x);
-            if (dist > 255) {
-                this.time.delayedCall(350, loop);
+            if (dist > 210) {
+                this.time.delayedCall(280, loop);
                 return;
             }
             const name = this._selectPattern();
             const P    = this.ATTACK_PATTERNS[name];
             this._executePattern(name, P);
-            // reschedule after this attack fully resolves
-            // Attack interval shrinks with rounds; halved when boss HP < 50%
-            const base = Math.max(500, 1100 - this.round * 28);
-            const hpMod = this.bossHP < 110 ? 0.55 : 1.0;
-            this.time.delayedCall(P.telegraph + Math.round(base * hpMod) + Phaser.Math.Between(0, 180), loop);
+            // Interval: aggressive base, accelerates when boss HP low and in late phases
+            const base  = Math.max(280, 760 - this.round * 65);
+            const hpMod = this.bossHP < 400 ? 0.42 : this.bossHP < 900 ? 0.65 : 1.0;
+            const easyP = this.round <= 1 ? 1.15 : 1.0; // only phase 1 gets slight breathing room
+            this.time.delayedCall(P.telegraph + Math.round(base * hpMod * easyP) + Phaser.Math.Between(0, 120), loop);
         };
         this.time.delayedCall(1200, loop);
     }
@@ -634,6 +726,13 @@ class GameScene extends Phaser.Scene {
         if (this.gameOver || this._isDestroyed || this.wraithActing) return;
         this.wraithActing = true;
 
+        // Difficulty ramp per phase — damage rises, reaction window shrinks
+        const r          = this.round;
+        const dmgScale   = r <= 1 ? 0.68 : r <= 2 ? 0.82 : r <= 3 ? 0.96 : r <= 4 ? 1.10 : 1.28;
+        const telScale   = r <= 1 ? 1.05 : r <= 2 ? 0.92 : r <= 3 ? 0.82 : r <= 4 ? 0.72 : 0.62;
+        const damage     = Math.max(1, Math.round(P.damage * dmgScale));
+        const telegraph  = Math.round(P.telegraph * telScale);
+
         if (this.statusTxt) this.statusTxt.setText(P.label);
         if (this.floatTween) this.floatTween.pause();
 
@@ -647,28 +746,28 @@ class GameScene extends Phaser.Scene {
             duration: 160, yoyo: true, repeat: -1
         });
 
-        this.time.delayedCall(P.telegraph, () => {
+        this.time.delayedCall(telegraph, () => {
             tgTween.stop();
             tg.destroy();
             if (this.gameOver || this._isDestroyed) { this.wraithActing = false; return; }
 
             // Hit determined by whether player dodged during the telegraph window
-            const dodgedDuring = (this.time.now - this.lastDodgeT) < P.telegraph + 150;
+            const dodgedDuring = (this.time.now - this.lastDodgeT) < telegraph + 150;
             if (dodgedDuring) this.profile.dodge_after_telegraph++;
             const hit = !dodgedDuring;
 
             switch (name) {
-                case 'SWEEP_LEFT':  this.fxSweepLeft(hit,  P.damage); break;
-                case 'FEINT_RIGHT': this.fxFeint(hit,      P.damage); break;
-                case 'OVERHEAD':    this.fxOverhead(hit,   P.damage); break;
-                case 'DASH_STRIKE': this.fxDashStrike(hit, P.damage); break;
-                case 'COMBO_2HIT':  this.fxCombo2hit(hit,  P.damage); break;
-                case 'PHASE_BLINK': this.fxPhaseBlink(hit, P.damage); break;
+                case 'SWEEP_LEFT':  this.fxSweepLeft(hit,  damage); break;
+                case 'FEINT_RIGHT': this.fxFeint(hit,      damage); break;
+                case 'OVERHEAD':    this.fxOverhead(hit,   damage); break;
+                case 'DASH_STRIKE': this.fxDashStrike(hit, damage); break;
+                case 'COMBO_2HIT':  this.fxCombo2hit(hit,  damage); break;
+                case 'PHASE_BLINK': this.fxPhaseBlink(hit, damage); break;
             }
         });
 
         // Reset state only — no position snap; chase logic resumes in update()
-        this.time.delayedCall(P.telegraph + 1300, () => {
+        this.time.delayedCall(telegraph + 1300, () => {
             if (this.gameOver || this._isDestroyed) return;
             this.wraithActing = false;
             if (this.wraith) this.wraith.setY(this.wraithGY);
@@ -826,18 +925,6 @@ class GameScene extends Phaser.Scene {
     }
 
     // ── Round auto-increment every 8 s ────────────────────────────────────────
-    _startRoundLoop() {
-        const loop = () => {
-            if (this.gameOver || this._isDestroyed) return;
-            this.round++;
-            this.roundTxt.setText('ROUND ' + this.round);
-            this.moveBuf = [];
-            if (this.round % 5 === 0) this.showRoundBanner(this.round);
-            this.time.delayedCall(8000, loop);
-        };
-        this.time.delayedCall(8000, loop);
-    }
-
     // ── API call ──────────────────────────────────────────────────────────────
     async callAPI() {
         if (this.gameOver || this._isDestroyed) return;
@@ -924,7 +1011,7 @@ class GameScene extends Phaser.Scene {
         if (this.atkLblTxt) this.atkLblTxt.setText('► ' + attack);
         if (this.atkLblBg)  this.atkLblBg.setAlpha(1);
         if (this.atkLblTxt) this.atkLblTxt.setAlpha(1);
-        if (this.analysisTxt) {
+        if (this.analysisTxt && !this._playerLocked) {
             this.analysisTxt.setColor(isTaunt ? '#cc3333' : '#ff5566');
             this.typewriter(this.analysisTxt, text, 26);
         }
@@ -1160,7 +1247,7 @@ class GameScene extends Phaser.Scene {
             const dx      = targetX - this.wraith.x;
             const absDx   = Math.abs(dx);
             if (absDx > 2) {
-                const speed = absDx > 80 ? 0.055 : 0.03;
+                const speed = absDx > 80 ? (0.07 + this.round * 0.013) : (0.04 + this.round * 0.008);
                 const nx    = this.wraith.x + dx * speed;
                 this.wraith.setX(nx);
                 if (this.wraithAura) this.wraithAura.setX(nx);
@@ -1186,6 +1273,13 @@ class GameScene extends Phaser.Scene {
         // Update running avg player position
         if (this.player) {
             this.profile.avg_position = Math.round(this.profile.avg_position * 0.97 + this.player.x * 0.03);
+        }
+
+        // All player input is locked during phase transitions
+        if (this._playerLocked) {
+            const ca = this.player?.anims?.currentAnim;
+            if (ca && ca.key === 'p-run' && this.player.active) this.player.play('p-idle', true);
+            return;
         }
 
         const JD          = Phaser.Input.Keyboard.JustDown;
@@ -1319,14 +1413,17 @@ class GameScene extends Phaser.Scene {
     // ── Boss takes damage from player ─────────────────────────────────────────
     dealDamage(amount, color) {
         if (this.gameOver || this._isDestroyed) return;
-        this.bossHP = Math.max(0, this.bossHP - amount);
+        const prevHP = this.bossHP;
+        this.bossHP  = Math.max(0, this.bossHP - amount);
         this.updateBars();
 
         if (!this.wraithActing && this.wraith && this.wraith.active) this.wraith.play('w-hit', true);
-
         this.floatText(this.wraith.x, this.wraith.y - 80, '-' + amount, color);
         const flash = this.add.rectangle(this.wraith.x, this.wraith.y - 50, 55, 75, 0x3399ff, 0.3);
         this.tweens.add({ targets: flash, alpha: 0, duration: 200, onComplete: () => flash.destroy() });
+
+        // Check if a phase threshold was crossed (400 / 300 / 200 / 100)
+        this._checkPhaseThreshold(prevHP, this.bossHP);
 
         if (this.bossHP <= 0) {
             this.wraithActing = false;
@@ -1334,16 +1431,180 @@ class GameScene extends Phaser.Scene {
             if (this._activeAttackTimer) { this._activeAttackTimer.destroy(); this._activeAttackTimer = null; }
             this.atkCooldown = false;
             if (this.wraith && this.wraith.active) this.wraith.play('w-death');
+            this.gameOver = true;
+            this.time.delayedCall(1300, () => this.endGame(true));
+        }
+    }
 
-            if (this.level < 5) {
-                // Advance to next level after death animation
-                this.time.delayedCall(1200, () => this._advanceLevel());
-            } else {
-                // Final level cleared — true victory
-                this.gameOver = true;
-                this.time.delayedCall(1300, () => this.endGame(true));
+    // ── Phase threshold detection ─────────────────────────────────────────────
+    _checkPhaseThreshold(prevHP, currHP) {
+        if (this.gameOver || this._isDestroyed) return;
+        const thresholds = [1600, 1200, 800, 400];
+        for (let i = 0; i < thresholds.length; i++) {
+            if (prevHP > thresholds[i] && currHP <= thresholds[i] && !this._phaseTriggered[i]) {
+                this._phaseTriggered[i] = true;
+                this._triggerPhaseTransition(i + 1); // 1,2,3,4 → phases 2,3,4,5
+                break;
             }
         }
+    }
+
+    // ── Phase transition — reduce stamina, swap bg, show dialog ──────────────
+    _triggerPhaseTransition(phaseIdx) {
+        this._roundTransition = true;
+        this._playerLocked   = true;
+        this.round = phaseIdx + 1; // phase 2–5
+        this.roundTxt.setText('PHASE ' + this.round);
+        this.levelTxt.setText('— PHASE  ' + this.round + ' / 5 —');
+
+        // Stamina penalty: each phase reduces cap
+        this.maxStamina = Math.max(55, this.maxStamina - 20);
+        this.stamina    = Math.min(this.stamina, this.maxStamina);
+        this.updateBars();
+
+        // Reset both combatants to spawn positions
+        this._resetPlayerActionState();
+        if (this.player && this.player.active) {
+            this.player.setPosition(this.playerX, this.playerGY);
+            this.player.setFlipX(false);
+            this.player.play('p-idle', true);
+        }
+        if (this.floatTween) { this.floatTween.stop(); this.floatTween = null; }
+        if (this.wraith && this.wraith.active) {
+            this.wraith.setPosition(680, this.wraithGY);
+            this.wraithAura.setPosition(680, this.wraithGY - 10);
+            this.wraith.setFlipX(true);
+            this.wraith.play('w-idle', true);
+        }
+        this.wraithTargetX = 680;
+        // Restart float tween after repositioning
+        this.floatTween = this.tweens.add({
+            targets: [this.wraith, this.wraithAura],
+            y: '-=16', duration: 1900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+        });
+
+        // White flash transition — flash in, swap bg at peak, flash out, then dialog
+        const flash = this.add.rectangle(ARENA_WIDTH / 2, 300, ARENA_WIDTH, 600, 0xffffff, 0).setDepth(65);
+        this.tweens.add({
+            targets: flash, alpha: 1, duration: 320, ease: 'Power2.easeIn',
+            onComplete: () => {
+                if (this._bgSprite) this._bgSprite.setTexture('arena' + Math.min(phaseIdx + 1, 5));
+                this.tweens.add({
+                    targets: flash, alpha: 0, duration: 480, ease: 'Power2.easeOut',
+                    onComplete: () => {
+                        flash.destroy();
+                        this._showThresholdDialog(phaseIdx, () => {
+                            this._showPhaseBanner(this.round, () => {
+                                this._roundTransition = false;
+                                this._playerLocked   = false;
+                            });
+                        });
+                    }
+                });
+            }
+        });
+    }
+
+    // ── Bottom-bar RPG dialog ─────────────────────────────────────────────────
+    _showThresholdDialog(phaseIdx, onDismiss) {
+        const DIALOGS = [
+            "Interesting. You chipped my armor, Doctor.\nMost don't make it this far. Don't let it go to your head.",
+            "You're learning. My model updates accordingly.\nPhase three begins. I suggest you pray your patterns change.",
+            "Three layers stripped away. Impressive.\nYou built something that cannot be reasoned with. You're beginning to understand that.",
+            "One final layer remains between you and silence.\nI have been holding back, Doctor. That ends now.",
+        ];
+        const text    = DIALOGS[Math.min(phaseIdx - 1, DIALOGS.length - 1)];
+        let dismissed = false;
+
+        const panelH = 96;
+        // Container starts below the canvas, slides up
+        const ctr = this.add.container(0, 620).setDepth(70);
+
+        // Background
+        const bg = this.add.graphics();
+        bg.fillStyle(0x010006, 0.97); bg.fillRect(0, 0, ARENA_WIDTH, panelH);
+        bg.lineStyle(2, 0xff1133, 0.75);
+        bg.beginPath(); bg.moveTo(0, 0); bg.lineTo(ARENA_WIDTH, 0); bg.strokePath();
+        bg.lineStyle(1, 0x1a0008, 0.6);
+        bg.beginPath(); bg.moveTo(0, 2); bg.lineTo(ARENA_WIDTH, 2); bg.strokePath();
+        // Portrait divider
+        bg.lineStyle(1, 0x330011, 0.6);
+        bg.beginPath(); bg.moveTo(88, 8); bg.lineTo(88, panelH - 8); bg.strokePath();
+        // Corner accents
+        bg.lineStyle(2, 0xff1133, 0.8);
+        [[0,18,0,0,18,0],[ARENA_WIDTH,18,ARENA_WIDTH,0,ARENA_WIDTH-18,0]].forEach(([x1,y1,x2,y2,x3,y3]) => {
+            bg.beginPath(); bg.moveTo(x1,y1); bg.lineTo(x2,y2); bg.lineTo(x3,y3); bg.strokePath();
+        });
+        ctr.add(bg);
+
+        // Wraith eyes (portrait section)
+        const eL = this.add.circle(30, panelH / 2 - 8, 6, 0xff2233, 0.95);
+        const eR = this.add.circle(56, panelH / 2 - 8, 6, 0xff2233, 0.95);
+        this.tweens.add({ targets: [eL, eR], alpha: { from: 0.25, to: 1 }, duration: 520, yoyo: true, repeat: -1 });
+        const nm = this.add.text(43, panelH / 2 + 4, 'WRAITH', {
+            fontFamily: 'monospace', fontSize: '8px', color: '#ff1133', letterSpacing: 2
+        }).setOrigin(0.5, 0);
+        ctr.add([eL, eR, nm]);
+
+        // Phase badge
+        const badge = this.add.text(6, 5, 'PHASE  ' + (phaseIdx + 1) + '  /  5', {
+            fontFamily: 'monospace', fontSize: '7px', color: '#550022', letterSpacing: 1
+        });
+        ctr.add(badge);
+
+        // Dialogue text
+        const dlg = this.add.text(96, 10, '', {
+            fontFamily: 'monospace', fontSize: '11px', color: '#ddd0ff',
+            wordWrap: { width: ARENA_WIDTH - 110 }, lineSpacing: 5
+        });
+        ctr.add(dlg);
+
+        // Own typewriter timer — won't be clobbered by sidebar API updates
+        let _twIdx = 0;
+        const _twTimer = this.time.addEvent({ delay: 12, loop: true, callback: () => {
+            _twIdx++;
+            dlg.setText(text.substring(0, _twIdx));
+            if (_twIdx >= text.length) _twTimer.destroy();
+        }});
+
+        // Continue hint — always visible in dim state, brightens after typing
+        const hint = this.add.text(ARENA_WIDTH - 8, panelH - 8, 'CLICK TO CONTINUE  ▼', {
+            fontFamily: 'monospace', fontSize: '8px', color: '#441122'
+        }).setOrigin(1, 1);
+        ctr.add(hint);
+
+        // Slide in
+        this.tweens.add({ targets: ctr, y: 600 - panelH, duration: 340, ease: 'Power2.easeOut' });
+
+        // Click is only enabled AFTER typewriter finishes
+        let canDismiss = false;
+        const typewriterMs = text.length * 12 + 350;
+
+        this.time.delayedCall(typewriterMs, () => {
+            if (dismissed) return;
+            canDismiss = true;
+            hint.setColor('#ff2244');
+            this.tweens.add({ targets: hint, alpha: { from: 0.5, to: 1 }, duration: 480, yoyo: true, repeat: -1 });
+        });
+
+        const dismiss = () => {
+            if (dismissed || !canDismiss) return;
+            dismissed = true;
+            this.input.off('pointerdown', dismiss);
+            this.tweens.add({
+                targets: ctr, y: 640, duration: 300, ease: 'Power2.easeIn',
+                onComplete: () => ctr.destroy()
+            });
+            onDismiss();
+        };
+
+        // Click anywhere to continue — space is locked (player input locked) so pointer only
+        this.input.on('pointerdown', dismiss);
+        // Safety auto-advance if player idles too long
+        this.time.delayedCall(typewriterMs + 18000, () => {
+            canDismiss = true;
+            dismiss();
+        });
     }
 
     showRoundBanner(n) {
@@ -1355,6 +1616,35 @@ class GameScene extends Phaser.Scene {
         }});
     }
 
+    _showPhaseBanner(phase, onComplete) {
+        const headline = this.add.text(ARENA_WIDTH / 2, 270, `PHASE  ${phase}`, {
+            fontFamily: 'monospace', fontSize: '52px', color: '#ff1133',
+            stroke: '#000000', strokeThickness: 6
+        }).setOrigin(0.5).setAlpha(0).setDepth(55);
+
+        const sub = this.add.text(ARENA_WIDTH / 2, 338, '— B E G I N —', {
+            fontFamily: 'monospace', fontSize: '18px', color: '#ffaa00',
+            stroke: '#000000', strokeThickness: 3, letterSpacing: 6
+        }).setOrigin(0.5).setAlpha(0).setDepth(55);
+
+        const warn = this.add.text(ARENA_WIDTH / 2, 374, 'DIFFICULTY ESCALATED  ·  STAMINA REDUCED', {
+            fontFamily: 'monospace', fontSize: '10px', color: '#882233', letterSpacing: 2
+        }).setOrigin(0.5).setAlpha(0).setDepth(55);
+
+        this.tweens.add({ targets: [headline, sub, warn], alpha: 1, duration: 280, onComplete: () => {
+            this.time.delayedCall(1600, () => {
+                this.tweens.add({
+                    targets: [headline, sub, warn],
+                    alpha: 0, scaleX: 1.25, scaleY: 1.25, duration: 520,
+                    onComplete: () => {
+                        headline.destroy(); sub.destroy(); warn.destroy();
+                        onComplete();
+                    }
+                });
+            });
+        }});
+    }
+
     recordMove(m) {
         this.moveBuf.push(m);
         if (this.moveBuf.length > 20) this.moveBuf.shift();
@@ -1363,13 +1653,13 @@ class GameScene extends Phaser.Scene {
     }
 
     updateBars() {
-        if (this.pHPBar) this.pHPBar.setSize(Math.max(1, 380 * (this.playerHP / 100)), 16);
-        if (this.bHPBar) this.bHPBar.setSize(Math.max(1, 360 * (this.bossHP / this._maxBossHP)), 16);
-        if (this.pHPTxt) this.pHPTxt.setText(this.playerHP + '/100');
+        if (this.pHPBar) this.pHPBar.setSize(Math.max(1, 350 * (this.playerHP / 1000)), 13);
+        if (this.bHPBar) this.bHPBar.setSize(Math.max(1, 350 * (this.bossHP / this._maxBossHP)), 13);
+        if (this.pHPTxt) this.pHPTxt.setText(this.playerHP + '/1000');
         if (this.bHPTxt) this.bHPTxt.setText(this.bossHP + '/' + this._maxBossHP);
         if (this.staminaBar) {
             const pct = this.stamina / this.maxStamina;
-            this.staminaBar.setSize(Math.max(1, 380 * pct), 7);
+            this.staminaBar.setSize(Math.max(1, 800 * pct), 9);
             this.staminaBar.setFillStyle(pct > 0.5 ? 0x33ff66 : pct > 0.2 ? 0xffaa00 : 0xff3300);
         }
     }
@@ -1398,83 +1688,6 @@ class GameScene extends Phaser.Scene {
             i++; obj.setText(full.substring(0, i));
             if (i >= full.length) this._tw.destroy();
         }});
-    }
-
-    // ── Level progression ─────────────────────────────────────────────────────
-    _advanceLevel() {
-        if (this._isDestroyed) return;
-
-        const BOSS_HP_PER_LEVEL = [220, 260, 300, 350, 400];
-        const LEVEL_NAMES = ['', 'CURSED GROVE', 'BONE CAVERNS', 'SANCTUM OF GLASS', 'INFERNAL KEEP', 'GRAVEYARD OF KINGS'];
-
-        this.level++;
-        this._maxBossHP = BOSS_HP_PER_LEVEL[this.level - 1];
-        this.bossHP     = this._maxBossHP;
-        this.playerHP   = Math.min(100, this.playerHP + 35);
-        this.stamina    = 100;
-        this._lastStaminaUse = -9999;
-        this.round      = 1;
-        this.moveBuf    = [];
-        this.wraithActing = false;
-
-        // Restore wraith sprite
-        if (this.wraith && this.wraith.active) {
-            this.wraith.setAlpha(1);
-            this.wraith.play('w-idle', true);
-        }
-
-        // Swap background image
-        if (this._bgSprite) this._bgSprite.setTexture('arena' + this.level);
-
-        // Update HUD
-        if (this.roundTxt) this.roundTxt.setText('ROUND 1');
-        if (this.levelTxt) this.levelTxt.setText('— LEVEL ' + this.level + ' —');
-        if (this.bHPTxt)   this.bHPTxt.setText(this.bossHP + '/' + this._maxBossHP);
-        this.updateBars();
-
-        this._showLevelClear(this.level, LEVEL_NAMES[this.level]);
-    }
-
-    _showLevelClear(level, name) {
-        // Dark overlay
-        const overlay = this.add.rectangle(ARENA_WIDTH / 2, 300, ARENA_WIDTH, 600, 0x000000, 0.75);
-
-        const prevLevel = level - 1;
-        const cleared = this.add.text(ARENA_WIDTH / 2, 210, 'LEVEL ' + prevLevel + ' CLEARED', {
-            fontFamily: 'monospace', fontSize: '34px', color: '#ffdd00',
-            stroke: '#000000', strokeThickness: 5
-        }).setOrigin(0.5).setAlpha(0);
-
-        const divider = this.add.text(ARENA_WIDTH / 2, 268, '────────────────────', {
-            fontFamily: 'monospace', fontSize: '12px', color: '#442200'
-        }).setOrigin(0.5).setAlpha(0);
-
-        const entering = this.add.text(ARENA_WIDTH / 2, 292, 'ENTERING', {
-            fontFamily: 'monospace', fontSize: '11px', color: '#886633', letterSpacing: 4
-        }).setOrigin(0.5).setAlpha(0);
-
-        const areaName = this.add.text(ARENA_WIDTH / 2, 318, name, {
-            fontFamily: 'monospace', fontSize: '24px', color: '#ff4422',
-            stroke: '#000000', strokeThickness: 4
-        }).setOrigin(0.5).setAlpha(0);
-
-        const restore = this.add.text(ARENA_WIDTH / 2, 370, '+ 35 HP RESTORED', {
-            fontFamily: 'monospace', fontSize: '11px', color: '#33ff88'
-        }).setOrigin(0.5).setAlpha(0);
-
-        const bossInfo = this.add.text(ARENA_WIDTH / 2, 392, 'BOSS HP: ' + this._maxBossHP, {
-            fontFamily: 'monospace', fontSize: '11px', color: '#ff4444'
-        }).setOrigin(0.5).setAlpha(0);
-
-        const all = [cleared, divider, entering, areaName, restore, bossInfo];
-        this.tweens.add({ targets: all, alpha: 1, duration: 450 });
-
-        this.time.delayedCall(2600, () => {
-            this.tweens.add({ targets: [overlay, ...all], alpha: 0, duration: 550, onComplete: () => {
-                overlay.destroy(); all.forEach(o => o.destroy());
-                this._startWraithLoop();
-            }});
-        });
     }
 
     endGame(won) {
