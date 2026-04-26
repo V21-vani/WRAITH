@@ -710,13 +710,12 @@ class GameScene extends Phaser.Scene {
             }
         });
 
-        // Always reset wraith position and state after full attack duration
+        // Reset state only — no position snap; chase logic resumes in update()
         this.time.delayedCall(P.telegraph + 1300, () => {
             if (this.gameOver || this._isDestroyed) return;
-            this.wraithActing  = false;
-            this.wraithTargetX = 680;
-            if (this.wraith) { this.wraith.setX(680); this.wraith.setY(this.wraithGY); this.wraith.setFlipX(true); }
-            if (this.wraithAura) { this.wraithAura.setX(680); this.wraithAura.setY(this.wraithGY - 10); this.wraithAura.setAlpha(0.07); }
+            this.wraithActing = false;
+            if (this.wraith) this.wraith.setY(this.wraithGY);
+            if (this.wraithAura) { this.wraithAura.setY(this.wraithGY - 10); this.wraithAura.setAlpha(0.07); }
             if (this.floatTween) this.floatTween.resume();
             if (this.wraith && this.wraith.active) this.wraith.play('w-idle', true);
             if (this.statusTxt) this.statusTxt.setText('◈ OBSERVING');
@@ -1079,10 +1078,7 @@ class GameScene extends Phaser.Scene {
                 } else {
                     this.floatText(tgX, this.wraithGY - 90, 'DODGED!', '#3399ff');
                 }
-                this.time.delayedCall(300, () => {
-                    if (this.gameOver || this._isDestroyed) return;
-                    this.tweens.add({ targets: this.wraith, x: 680, duration: 400, ease: 'Power2.easeOut' });
-                });
+                // Stay at attack position — chase logic handles repositioning
             }
         });
     }
@@ -1111,10 +1107,7 @@ class GameScene extends Phaser.Scene {
                         const g2 = this.add.circle(this.player.x, this.wraithGY - 60, 25, 0xffaa00, 0.7);
                         this.tweens.add({ targets: g2, scaleX: 2.5, scaleY: 2, alpha: 0, duration: 220, onComplete: () => g2.destroy() });
                     }
-                    this.time.delayedCall(300, () => {
-                        if (this.gameOver || this._isDestroyed) return;
-                        this.tweens.add({ targets: this.wraith, x: 680, duration: 450, ease: 'Power2.easeOut' });
-                    });
+                    // Stay at attack position — chase logic handles repositioning
                 });
             }
         });
@@ -1150,11 +1143,7 @@ class GameScene extends Phaser.Scene {
                 this.floatText(behindX, this.wraithGY - 90, 'PHASED!', '#9900ff');
             }
 
-            this.time.delayedCall(500, () => {
-                if (this.gameOver || this._isDestroyed) return;
-                this.wraith.setFlipX(true);
-                this.tweens.add({ targets: this.wraith, x: 680, duration: 500, ease: 'Power2.easeOut' });
-            });
+            // Stay at behindX after phase blink — chase logic repositions naturally
         });
     }
 
