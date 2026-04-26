@@ -17,7 +17,7 @@ pinned: false
 
 | Resource | Link |
 |---|---|
-| HuggingFace Space (playable) | _Coming soon — deploy via Dockerfile_ |
+| HuggingFace Space (API) | [notshakti/wraith-env](https://huggingface.co/spaces/notshakti/wraith-env) |
 | Trained Model | [notshakti/wraith-boss-ai](https://huggingface.co/notshakti/wraith-boss-ai) |
 | OpenEnv Manifest | [`openenv.yaml`](openenv.yaml) |
 
