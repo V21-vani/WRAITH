@@ -1,7 +1,8 @@
 # policy.py
-# Wraps the trained LLM (Unsloth LoRA) as a drop-in replacement for ComboSelector.
-# Set WRAITH_USE_LLM=1 in app.py to activate.
+# Uses HuggingFace Inference API to call the trained WRAITH model.
+# No torch/unsloth needed in the server container — calls HF API remotely.
 
+import os
 import json
 import re
 from combos import COMBOS
@@ -31,61 +32,48 @@ VALID_COMBOS = set(COMBOS.keys())
 
 class WraithPolicy:
     """
-    Loads the trained WRAITH LoRA from HuggingFace and generates combo decisions.
-    Falls back gracefully if the model isn't available.
+    Calls the trained WRAITH model via HuggingFace Inference API.
+    Requires HF_TOKEN env var with read access to the model.
     """
 
-    def __init__(self, model_name: str = "wraith-boss-ai"):
+    def __init__(self, model_name: str = "notshakti/wraith-boss-ai"):
+        self.model_name = model_name
+        self.hf_token = os.environ.get("HF_TOKEN", "")
         try:
-            from unsloth import FastLanguageModel
-            import torch
-            self.model, self.tokenizer = FastLanguageModel.from_pretrained(
-                model_name=model_name,
-                max_seq_length=1024,
-                load_in_4bit=True,
+            from huggingface_hub import InferenceClient
+            self.client = InferenceClient(
+                model=self.model_name,
+                token=self.hf_token if self.hf_token else None,
             )
-            FastLanguageModel.for_inference(self.model)
             self._loaded = True
-            print(f"[WraithPolicy] Loaded {model_name}")
+            print(f"[WraithPolicy] InferenceClient ready: {model_name}")
         except Exception as e:
-            print(f"[WraithPolicy] Could not load model: {e}")
+            print(f"[WraithPolicy] Could not init InferenceClient: {e}")
             self._loaded = False
 
     def generate(self, profile_text: str, num_samples: int = 1) -> list:
-        """Generate num_samples completions for the given player profile."""
         if not self._loaded:
-            return ['{"combo": "PHANTOM_RUSH", "reasoning": "Model not loaded — using fallback."}']
+            return ['{"combo": "PHANTOM_RUSH", "reasoning": "Model not available — using fallback."}']
 
-        import torch
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user",   "content": profile_text},
-        ]
-        input_ids = self.tokenizer.apply_chat_template(
-            messages,
-            tokenize=True,
-            add_generation_prompt=True,
-            return_tensors="pt",
-        ).to("cuda")
-
-        with torch.no_grad():
-            outputs = self.model.generate(
-                input_ids,
-                max_new_tokens=200,
-                do_sample=True,
-                temperature=0.8,
-                top_p=0.9,
-                num_return_sequences=num_samples,
-            )
-
-        prompt_len = input_ids.shape[1]
-        return [
-            self.tokenizer.decode(o[prompt_len:], skip_special_tokens=True)
-            for o in outputs
-        ]
+        results = []
+        for _ in range(num_samples):
+            try:
+                response = self.client.chat_completion(
+                    messages=[
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user",   "content": profile_text},
+                    ],
+                    max_tokens=220,
+                    temperature=0.8,
+                )
+                text = response.choices[0].message.content
+                results.append(text)
+            except Exception as e:
+                print(f"[WraithPolicy] Inference error: {e}")
+                results.append('{"combo": "PHANTOM_RUSH", "reasoning": "Inference error — using fallback."}')
+        return results
 
     def parse(self, text: str) -> dict:
-        """Extract combo name and reasoning from raw LLM output."""
         try:
             match = re.search(r'\{.*\}', text, re.DOTALL)
             if match:
