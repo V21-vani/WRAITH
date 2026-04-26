@@ -1,3 +1,12 @@
+---
+title: WRAITH Environment
+emoji: 👻
+colorFrom: red
+colorTo: purple
+sdk: docker
+pinned: false
+---
+
 # WRAITH — Weakness Recognition and Adaptive Intelligence for Tactical Hunting
 
 > **OpenEnv Hackathon India 2026** · Boss AI that studies your movement patterns and exploits them in real time.
