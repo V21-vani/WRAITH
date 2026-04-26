@@ -125,6 +125,11 @@ class GameScene extends Phaser.Scene {
         P('player_jump_up_attack',    240);
         P('player_jump_down_attack',  240);
         P('player_special_dash',      240);
+
+        // Arena backgrounds (one per level)
+        for (let i = 1; i <= 5; i++) {
+            this.load.image('arena' + i, `assets/backgrounds/game_arenas${i}.png`);
+        }
     }
 
     // ── Attack patterns used by the autonomous wraith loop ─────────────────
@@ -141,6 +146,9 @@ class GameScene extends Phaser.Scene {
 
     create() {
         // Core game state
+        this.level        = 1;
+        this._maxBossHP   = 220;
+        this._wraithLoopId = 0;
         this.playerHP     = 100;
         this.bossHP       = 220;
         this.stamina      = 100;
@@ -267,90 +275,37 @@ class GameScene extends Phaser.Scene {
         A('p-special',    'player_special_dash',  4, 18, 0);
     }
 
-    // ── Background (unchanged) ───────────────────────────────────────────────
+    // ── Background — level-specific arena image + atmospheric overlays ────────
     createBackground() {
-        const g = this.add.graphics();
+        // Arena image — fills the 820×600 play area; swapped each level
+        this._bgSprite = this.add.image(0, 0, 'arena1')
+            .setOrigin(0, 0)
+            .setDisplaySize(ARENA_WIDTH, 600);
 
-        g.fillGradientStyle(0x080118, 0x080118, 0x120828, 0x120828, 1);
+        // Dark vignette: keeps the image moody and improves sprite readability
+        const g = this.add.graphics();
+        g.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.55, 0.55, 0.08, 0.08);
         g.fillRect(0, 0, ARENA_WIDTH, 600);
+
+        // Sidebar background (solid — not part of the arena image)
         g.fillStyle(0x050010, 1); g.fillRect(ARENA_WIDTH, 0, 280, 600);
         g.fillStyle(0x44001a, 1); g.fillRect(ARENA_WIDTH, 0, 2, 600);
-        g.fillStyle(0x0c0420, 1); g.fillRect(0, 80, ARENA_WIDTH, 460);
-        g.lineStyle(3, 0x2a0840, 0.8); g.strokeEllipse(410, 100, 680, 380);
-        g.fillStyle(0x1a0a35, 1); g.fillRect(0, 500, ARENA_WIDTH, 100);
-        g.fillStyle(0x23104a, 1); g.fillRect(0, 495, ARENA_WIDTH, 10);
-        g.fillStyle(0x1a0a35, 1); g.fillRect(0, 505, ARENA_WIDTH, 5);
-        g.lineStyle(1, 0x2d1050, 0.6);
-        for (let x = 0; x <= ARENA_WIDTH; x += 82) g.strokeLineShape(new Phaser.Geom.Line(x, 495, x, 600));
-        g.strokeLineShape(new Phaser.Geom.Line(0, 530, ARENA_WIDTH, 530));
-        g.lineStyle(1, 0x44005a, 0.5);
-        [[80,510,155,524],[320,505,390,515],[500,508,560,520],[680,512,740,505]].forEach(([x1,y1,x2,y2]) =>
-            g.strokeLineShape(new Phaser.Geom.Line(x1,y1,x2,y2)));
 
-        const pillars = [30, 175, 560, 720];
-        pillars.forEach(px => {
-            g.fillStyle(0x060112, 1); g.fillRect(px - 2, 105, 54, 395);
-            g.fillStyle(0x0e0622, 1); g.fillRect(px, 110, 50, 390);
-            g.fillStyle(0x1a0c38, 1); g.fillRect(px, 110, 7, 390);
-            g.fillStyle(0x1c0d3a, 1);
-            g.fillRect(px - 10, 100, 70, 18); g.fillRect(px - 10, 492, 70, 12);
-            g.fillStyle(0x2a1050, 1); g.fillRect(px - 10, 113, 70, 3);
-            g.fillStyle(0x05000e, 1); g.fillRect(px + 18, 160, 14, 55);
-            g.fillStyle(0x1a0030, 0.4); g.fillRect(px + 18, 160, 14, 55);
-        });
-
-        g.lineStyle(2, 0x1a0833, 0.7);
-        [[95,0,105,90],[100,0,88,95],[88,0,82,85]].forEach(([x1,y1,x2,y2]) =>
-            g.strokeLineShape(new Phaser.Geom.Line(x1,y1,x2,y2)));
-        for (let y = 10; y < 90; y += 12) g.strokeEllipse(100, y, 8, 5);
-        for (let y = 10; y < 80; y += 12) g.strokeEllipse(735, y, 8, 5);
-
-        const orbs = [
-            { x: 200, y: 350, r: 120, c: 0x220055, a: 0.18 },
-            { x: 620, y: 300, r: 100, c: 0x550011, a: 0.15 },
-            { x: 410, y: 150, r: 80,  c: 0x330033, a: 0.12 }
-        ];
-        orbs.forEach(o => {
-            const orb = this.add.circle(o.x, o.y, o.r, o.c, o.a);
-            this.tweens.add({ targets: orb, alpha: { from: o.a * 0.5, to: o.a * 1.5 }, duration: 2200 + Math.random() * 1000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-        });
-
+        // Floating mist along the ground
         for (let i = 0; i < 14; i++) {
             const mx = 30 + i * 56;
             const mh = 14 + Math.random() * 18;
-            const mist = this.add.rectangle(mx, 504, 44 + Math.random() * 40, mh, 0x3a0020, 0.22 + Math.random() * 0.15);
-            this.tweens.add({ targets: mist, x: mx + Phaser.Math.Between(-30, 30), scaleX: { from: 0.8, to: 1.4 }, alpha: { from: 0.1, to: 0.38 }, duration: 1600 + Math.random() * 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+            const mist = this.add.rectangle(mx, 510, 48 + Math.random() * 40, mh, 0x000000, 0.18 + Math.random() * 0.12);
+            this.tweens.add({ targets: mist, x: mx + Phaser.Math.Between(-30, 30), scaleX: { from: 0.8, to: 1.4 }, alpha: { from: 0.06, to: 0.28 }, duration: 1600 + Math.random() * 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
         }
 
+        // Rising embers
         for (let i = 0; i < 18; i++) {
             const ex = Phaser.Math.Between(20, ARENA_WIDTH - 20);
-            const ey = Phaser.Math.Between(200, 490);
-            const ember = this.add.circle(ex, ey, 1.5 + Math.random(), 0xff3300, 0.6 + Math.random() * 0.4);
-            this.tweens.add({ targets: ember, y: ey - Phaser.Math.Between(60, 160), x: ex + Phaser.Math.Between(-40, 40), alpha: { from: 0.8, to: 0 }, duration: 2000 + Math.random() * 2000, delay: Math.random() * 3000, repeat: -1, repeatDelay: Math.random() * 1500 });
+            const ey = Phaser.Math.Between(280, 490);
+            const ember = this.add.circle(ex, ey, 1.5 + Math.random(), 0xff5500, 0.5 + Math.random() * 0.4);
+            this.tweens.add({ targets: ember, y: ey - Phaser.Math.Between(80, 200), x: ex + Phaser.Math.Between(-40, 40), alpha: { from: 0.7, to: 0 }, duration: 2000 + Math.random() * 2000, delay: Math.random() * 3000, repeat: -1, repeatDelay: Math.random() * 1500 });
         }
-
-        [55, 200, 585, 745].forEach(tx => {
-            const glow  = this.add.circle(tx, 128, 22, 0xff4400, 0.18);
-            const flame = this.add.circle(tx, 128, 7,  0xffaa00, 0.9);
-            this.tweens.add({ targets: glow,  alpha: { from: 0.08, to: 0.28 }, scaleX: { from: 0.8, to: 1.3 }, duration: 200 + Math.random() * 150, yoyo: true, repeat: -1 });
-            this.tweens.add({ targets: flame, alpha: { from: 0.6,  to: 1    }, scaleY: { from: 0.9, to: 1.3 }, duration: 180 + Math.random() * 120, yoyo: true, repeat: -1 });
-        });
-
-        g.lineStyle(1, 0x440055, 0.35);
-        g.strokeCircle(410, 510, 70); g.strokeCircle(410, 510, 50);
-        const pts = 5;
-        const angles = Array.from({ length: pts }, (_, i) => (i * 2 * Math.PI / pts) - Math.PI / 2);
-        const rr = 65;
-        angles.forEach((a, i) => {
-            const nx = angles[(i + 2) % pts];
-            g.strokeLineShape(new Phaser.Geom.Line(
-                410 + Math.cos(a) * rr, 510 + Math.sin(a) * rr * 0.4,
-                410 + Math.cos(nx) * rr, 510 + Math.sin(nx) * rr * 0.4
-            ));
-        });
-
-        const sigilGlow = this.add.circle(410, 510, 72, 0x660033, 0);
-        this.tweens.add({ targets: sigilGlow, alpha: { from: 0, to: 0.12 }, duration: 2800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     }
 
     // ── Sprites ──────────────────────────────────────────────────────────────
@@ -414,6 +369,7 @@ class GameScene extends Phaser.Scene {
         this.add.text(794, 6, 'WRAITH', { fontFamily: 'monospace', fontSize: '10px', color: '#ff2233' }).setOrigin(1, 0);
 
         this.roundTxt  = this.add.text(410, 6, 'ROUND 1', { fontFamily: 'monospace', fontSize: '12px', color: '#e8e0ff' }).setOrigin(0.5, 0);
+        this.levelTxt  = this.add.text(410, 20, '— LEVEL 1 —', { fontFamily: 'monospace', fontSize: '9px', color: '#ff6622' }).setOrigin(0.5, 0);
         this.pHPTxt    = this.add.text(14,  30, '100/100', { fontFamily: 'monospace', fontSize: '9px', color: '#7799cc' });
         this.bHPTxt    = this.add.text(794, 30, '220/220', { fontFamily: 'monospace', fontSize: '9px', color: '#cc7788' }).setOrigin(1, 0);
 
@@ -629,8 +585,9 @@ class GameScene extends Phaser.Scene {
 
     // ── Autonomous wraith attack loop ─────────────────────────────────────────
     _startWraithLoop() {
+        const myId = ++this._wraithLoopId;
         const loop = () => {
-            if (this.gameOver || this._isDestroyed) return;
+            if (this.gameOver || this._isDestroyed || this._wraithLoopId !== myId) return;
             if (this.wraithActing) {
                 this.time.delayedCall(400, loop);
                 return;
@@ -1372,13 +1329,20 @@ class GameScene extends Phaser.Scene {
         this.tweens.add({ targets: flash, alpha: 0, duration: 200, onComplete: () => flash.destroy() });
 
         if (this.bossHP <= 0) {
-            this.gameOver     = true;
             this.wraithActing = false;
             this._clearAllPending();
             if (this._activeAttackTimer) { this._activeAttackTimer.destroy(); this._activeAttackTimer = null; }
             this.atkCooldown = false;
             if (this.wraith && this.wraith.active) this.wraith.play('w-death');
-            this.time.delayedCall(1300, () => this.endGame(true));
+
+            if (this.level < 5) {
+                // Advance to next level after death animation
+                this.time.delayedCall(1200, () => this._advanceLevel());
+            } else {
+                // Final level cleared — true victory
+                this.gameOver = true;
+                this.time.delayedCall(1300, () => this.endGame(true));
+            }
         }
     }
 
@@ -1399,10 +1363,10 @@ class GameScene extends Phaser.Scene {
     }
 
     updateBars() {
-        if (this.pHPBar) this.pHPBar.setSize(Math.max(1, 380 * (this.playerHP / 100)),  16);
-        if (this.bHPBar) this.bHPBar.setSize(Math.max(1, 360 * (this.bossHP   / 220)),  16);
+        if (this.pHPBar) this.pHPBar.setSize(Math.max(1, 380 * (this.playerHP / 100)), 16);
+        if (this.bHPBar) this.bHPBar.setSize(Math.max(1, 360 * (this.bossHP / this._maxBossHP)), 16);
         if (this.pHPTxt) this.pHPTxt.setText(this.playerHP + '/100');
-        if (this.bHPTxt) this.bHPTxt.setText(this.bossHP   + '/220');
+        if (this.bHPTxt) this.bHPTxt.setText(this.bossHP + '/' + this._maxBossHP);
         if (this.staminaBar) {
             const pct = this.stamina / this.maxStamina;
             this.staminaBar.setSize(Math.max(1, 380 * pct), 7);
@@ -1434,6 +1398,83 @@ class GameScene extends Phaser.Scene {
             i++; obj.setText(full.substring(0, i));
             if (i >= full.length) this._tw.destroy();
         }});
+    }
+
+    // ── Level progression ─────────────────────────────────────────────────────
+    _advanceLevel() {
+        if (this._isDestroyed) return;
+
+        const BOSS_HP_PER_LEVEL = [220, 260, 300, 350, 400];
+        const LEVEL_NAMES = ['', 'CURSED GROVE', 'BONE CAVERNS', 'SANCTUM OF GLASS', 'INFERNAL KEEP', 'GRAVEYARD OF KINGS'];
+
+        this.level++;
+        this._maxBossHP = BOSS_HP_PER_LEVEL[this.level - 1];
+        this.bossHP     = this._maxBossHP;
+        this.playerHP   = Math.min(100, this.playerHP + 35);
+        this.stamina    = 100;
+        this._lastStaminaUse = -9999;
+        this.round      = 1;
+        this.moveBuf    = [];
+        this.wraithActing = false;
+
+        // Restore wraith sprite
+        if (this.wraith && this.wraith.active) {
+            this.wraith.setAlpha(1);
+            this.wraith.play('w-idle', true);
+        }
+
+        // Swap background image
+        if (this._bgSprite) this._bgSprite.setTexture('arena' + this.level);
+
+        // Update HUD
+        if (this.roundTxt) this.roundTxt.setText('ROUND 1');
+        if (this.levelTxt) this.levelTxt.setText('— LEVEL ' + this.level + ' —');
+        if (this.bHPTxt)   this.bHPTxt.setText(this.bossHP + '/' + this._maxBossHP);
+        this.updateBars();
+
+        this._showLevelClear(this.level, LEVEL_NAMES[this.level]);
+    }
+
+    _showLevelClear(level, name) {
+        // Dark overlay
+        const overlay = this.add.rectangle(ARENA_WIDTH / 2, 300, ARENA_WIDTH, 600, 0x000000, 0.75);
+
+        const prevLevel = level - 1;
+        const cleared = this.add.text(ARENA_WIDTH / 2, 210, 'LEVEL ' + prevLevel + ' CLEARED', {
+            fontFamily: 'monospace', fontSize: '34px', color: '#ffdd00',
+            stroke: '#000000', strokeThickness: 5
+        }).setOrigin(0.5).setAlpha(0);
+
+        const divider = this.add.text(ARENA_WIDTH / 2, 268, '────────────────────', {
+            fontFamily: 'monospace', fontSize: '12px', color: '#442200'
+        }).setOrigin(0.5).setAlpha(0);
+
+        const entering = this.add.text(ARENA_WIDTH / 2, 292, 'ENTERING', {
+            fontFamily: 'monospace', fontSize: '11px', color: '#886633', letterSpacing: 4
+        }).setOrigin(0.5).setAlpha(0);
+
+        const areaName = this.add.text(ARENA_WIDTH / 2, 318, name, {
+            fontFamily: 'monospace', fontSize: '24px', color: '#ff4422',
+            stroke: '#000000', strokeThickness: 4
+        }).setOrigin(0.5).setAlpha(0);
+
+        const restore = this.add.text(ARENA_WIDTH / 2, 370, '+ 35 HP RESTORED', {
+            fontFamily: 'monospace', fontSize: '11px', color: '#33ff88'
+        }).setOrigin(0.5).setAlpha(0);
+
+        const bossInfo = this.add.text(ARENA_WIDTH / 2, 392, 'BOSS HP: ' + this._maxBossHP, {
+            fontFamily: 'monospace', fontSize: '11px', color: '#ff4444'
+        }).setOrigin(0.5).setAlpha(0);
+
+        const all = [cleared, divider, entering, areaName, restore, bossInfo];
+        this.tweens.add({ targets: all, alpha: 1, duration: 450 });
+
+        this.time.delayedCall(2600, () => {
+            this.tweens.add({ targets: [overlay, ...all], alpha: 0, duration: 550, onComplete: () => {
+                overlay.destroy(); all.forEach(o => o.destroy());
+                this._startWraithLoop();
+            }});
+        });
     }
 
     endGame(won) {
