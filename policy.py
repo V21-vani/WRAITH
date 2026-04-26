@@ -1,10 +1,10 @@
 # policy.py
 # Uses HuggingFace Inference API to call the trained WRAITH model.
-# No torch/unsloth needed in the server container — calls HF API remotely.
 
 import os
 import json
 import re
+import requests
 from combos import COMBOS
 
 SYSTEM_PROMPT = """You are WRAITH — a supernatural boss villain who has studied thousands of fighters.
@@ -29,48 +29,53 @@ Study the player profile and respond ONLY in JSON:
 
 VALID_COMBOS = set(COMBOS.keys())
 
+MODELS_TO_TRY = [
+    "notshakti/wraith-boss-ai",
+    "Qwen/Qwen2.5-1.5B-Instruct",
+    "HuggingFaceH4/zephyr-7b-beta",
+]
+
 
 class WraithPolicy:
-    """
-    Calls the trained WRAITH model via HuggingFace Inference API.
-    Requires HF_TOKEN env var with read access to the model.
-    """
-
     def __init__(self, model_name: str = "notshakti/wraith-boss-ai"):
         self.model_name = model_name
         self.hf_token = os.environ.get("HF_TOKEN", "")
-        try:
-            from huggingface_hub import InferenceClient
-            self.client = InferenceClient(
-                model=self.model_name,
-                token=self.hf_token if self.hf_token else None,
-            )
-            self._loaded = True
-            print(f"[WraithPolicy] InferenceClient ready: {model_name}")
-        except Exception as e:
-            print(f"[WraithPolicy] Could not init InferenceClient: {e}")
-            self._loaded = False
+        self._loaded = bool(self.hf_token)
+        print(f"[WraithPolicy] Ready, token={'yes' if self.hf_token else 'no'}")
+
+    def _call_api(self, model: str, profile_text: str) -> str:
+        url = f"https://api-inference.huggingface.co/models/{model}/v1/chat/completions"
+        headers = {"Authorization": f"Bearer {self.hf_token}"}
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user",   "content": profile_text},
+            ],
+            "max_tokens": 220,
+            "temperature": 0.8,
+        }
+        resp = requests.post(url, headers=headers, json=payload, timeout=15)
+        print(f"[WraithPolicy] {model} → {resp.status_code}")
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"]
 
     def generate(self, profile_text: str, num_samples: int = 1) -> list:
         if not self._loaded:
-            return ['{"combo": "PHANTOM_RUSH", "reasoning": "Model not available — using fallback."}']
+            return ['{"combo": "PHANTOM_RUSH", "reasoning": "No token."}']
 
         results = []
         for _ in range(num_samples):
-            try:
-                response = self.client.chat_completion(
-                    messages=[
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user",   "content": profile_text},
-                    ],
-                    max_tokens=220,
-                    temperature=0.8,
-                )
-                text = response.choices[0].message.content
-                results.append(text)
-            except Exception as e:
-                print(f"[WraithPolicy] Inference error: {e}")
-                results.append('{"combo": "PHANTOM_RUSH", "reasoning": "Inference error — using fallback."}')
+            for model in MODELS_TO_TRY:
+                try:
+                    text = self._call_api(model, profile_text)
+                    print(f"[WraithPolicy] Success via {model}")
+                    results.append(text)
+                    break
+                except Exception as e:
+                    print(f"[WraithPolicy] {model} failed: {e}")
+            else:
+                results.append('{"combo": "PHANTOM_RUSH", "reasoning": "LLM unavailable."}')
         return results
 
     def parse(self, text: str) -> dict:
