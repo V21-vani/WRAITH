@@ -193,6 +193,7 @@ class GameScene extends Phaser.Scene {
         this._startWraithLoop();
         this._startApiLoop();
         this._startRoundLoop();
+        this._startTeleportLoop();
 
         this.showRoundBanner(1);
     }
@@ -519,7 +520,10 @@ class GameScene extends Phaser.Scene {
             const P    = this.ATTACK_PATTERNS[name];
             this._executePattern(name, P);
             // reschedule after this attack fully resolves
-            this.time.delayedCall(P.telegraph + 1300 + Phaser.Math.Between(0, 300), loop);
+            // Attack interval shrinks with rounds; halved when boss HP < 50%
+            const base = Math.max(500, 1100 - this.round * 28);
+            const hpMod = this.bossHP < 110 ? 0.55 : 1.0;
+            this.time.delayedCall(P.telegraph + Math.round(base * hpMod) + Phaser.Math.Between(0, 180), loop);
         };
         this.time.delayedCall(1200, loop);
     }
@@ -682,6 +686,52 @@ class GameScene extends Phaser.Scene {
         if (ar >= 50)          return 'OVERHEAD';
         if (total < 8)         return 'ANALYZING...';
         return 'PHANTOM_RUSH';
+    }
+
+    // ── Periodic teleport — WRAITH blinks to a new position every 7-12 s ───────
+    _startTeleportLoop() {
+        const loop = () => {
+            if (this.gameOver || this._isDestroyed) return;
+            if (!this.wraithActing) this._doTeleport();
+            this.time.delayedCall(Phaser.Math.Between(7000, 11000), loop);
+        };
+        this.time.delayedCall(Phaser.Math.Between(9000, 13000), loop);
+    }
+
+    _doTeleport() {
+        if (this.gameOver || this._isDestroyed || !this.wraith) return;
+        if (this.floatTween) this.floatTween.pause();
+
+        // Flash out at current position
+        const flash1 = this.add.rectangle(this.wraith.x, this.wraith.y - 50, 60, 120, 0x9900ff, 0.8);
+        this.tweens.add({ targets: flash1, alpha: 0, scaleX: 3, scaleY: 0.1, duration: 180, onComplete: () => flash1.destroy() });
+
+        this.time.delayedCall(180, () => {
+            if (this.gameOver || this._isDestroyed || !this.wraith) return;
+
+            // Teleport: random pick from behind-player, opposite side, or arena centre
+            const px = this.player.x;
+            const opts = [
+                Phaser.Math.Clamp(px + 220, 430, 740),  // right side
+                Phaser.Math.Clamp(px - 220, 430, 740),  // left side (unusual, threatening)
+                Phaser.Math.Between(460, 720),           // random arena position
+            ];
+            const newX = opts[Phaser.Math.Between(0, 2)];
+
+            this.wraith.setX(newX);
+            if (this.wraithAura) this.wraithAura.setX(newX);
+            this.wraith.setFlipX(newX > px);  // face the player
+
+            // Flash in
+            const flash2 = this.add.rectangle(newX, this.wraith.y - 50, 60, 120, 0x9900ff, 0.9);
+            this.tweens.add({ targets: flash2, alpha: 0, scaleX: 0.1, duration: 240, onComplete: () => flash2.destroy() });
+
+            if (this.floatTween) this.floatTween.resume();
+            if (this.statusTxt) {
+                this.statusTxt.setText('◈ PHASE SHIFT');
+                this.time.delayedCall(700, () => { if (this.statusTxt && !this.wraithActing) this.statusTxt.setText('◈ OBSERVING'); });
+            }
+        });
     }
 
     // ── API polling — fires every 2.5 s, non-blocking ─────────────────────────
@@ -1025,14 +1075,33 @@ class GameScene extends Phaser.Scene {
             this._updateSidebarRealtime();
         }
 
-        // Wraith autonomous X drift toward player (only when idle)
+        // Wraith chases player when idle — speed scales with distance
         if (!this.wraithActing && this.wraith) {
-            const targetX = Phaser.Math.Clamp(this.player.x + 210, 430, 750);
-            const dx = targetX - this.wraith.x;
-            if (Math.abs(dx) > 1) {
-                const nx = this.wraith.x + dx * 0.015;
+            const offset  = this.player.x < 400 ? 160 : 190;  // crowd player when they corner
+            const targetX = Phaser.Math.Clamp(this.player.x + offset, 430, 740);
+            const dx      = targetX - this.wraith.x;
+            const absDx   = Math.abs(dx);
+            if (absDx > 2) {
+                const speed = absDx > 80 ? 0.055 : 0.03;
+                const nx    = this.wraith.x + dx * speed;
                 this.wraith.setX(nx);
                 if (this.wraithAura) this.wraithAura.setX(nx);
+                // Face toward player
+                const shouldFaceLeft = this.player.x < this.wraith.x;
+                if (this.wraith.flipX !== shouldFaceLeft) this.wraith.setFlipX(shouldFaceLeft);
+                // Animate movement
+                const ca = this.wraith.anims.currentAnim;
+                if (ca && ca.key === 'w-idle') {
+                    this.wraith.play(absDx > 50 ? 'w-run' : 'w-walk', true);
+                }
+            } else {
+                // Snap back to idle when close enough, face player
+                const ca = this.wraith.anims.currentAnim;
+                if (ca && (ca.key === 'w-walk' || ca.key === 'w-run')) {
+                    this.wraith.play('w-idle', true);
+                }
+                const shouldFaceLeft = this.player.x < this.wraith.x;
+                if (this.wraith.flipX !== shouldFaceLeft) this.wraith.setFlipX(shouldFaceLeft);
             }
         }
 
