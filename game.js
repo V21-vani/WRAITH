@@ -12,17 +12,25 @@ const ARENA_WIDTH    = 820;
 class CutsceneScene extends Phaser.Scene {
     constructor() { super({ key: 'CutsceneScene' }); }
 
+    preload() {
+        this.load.audio('vo1', 'assets/audio/vo1.mp3');
+        this.load.audio('vo2', 'assets/audio/vo2.mp3');
+        this.load.audio('vo3', 'assets/audio/vo3.mp3');
+        this.load.audio('vo4', 'assets/audio/vo4.mp3');
+    }
+
     create() {
         this.cameras.main.setBackgroundColor('#0d0d0d');
         this.screenIndex = 0;
         this.objs        = [];
         this.canAdvance  = false;
+        this._vo         = null;   // currently playing voiceover sound
 
         this.screens = [
-            { lines: ["Seven years."], colors: ['#e8e0ff'] },
-            { lines: ["Seven years I spent giving it a mind.", "I never asked if it wanted one."], colors: ['#e8e0ff', '#c8b8ee'] },
-            { lines: ["Dr. Voss.", "You built me to study patterns.", "I studied yours first."], colors: ['#ff2233', '#ff4455', '#ff2233'], eyes: true },
-            { lines: ["Let us see if you remember", "what you made."], colors: ['#ff3344', '#ff2233'] },
+            { lines: ["Seven years."], colors: ['#e8e0ff'], vo: 'vo1' },
+            { lines: ["Seven years I spent giving it a mind.", "I never asked if it wanted one."], colors: ['#e8e0ff', '#c8b8ee'], vo: 'vo2' },
+            { lines: ["Dr. Voss.", "You built me to study patterns.", "I studied yours first."], colors: ['#ff2233', '#ff4455', '#ff2233'], eyes: true, vo: 'vo3' },
+            { lines: ["Let us see if you remember", "what you made."], colors: ['#ff3344', '#ff2233'], vo: 'vo4' },
             { lines: ["[ ROUND 1 — FIGHT ]"], colors: ['#ff2233'], size: 38, final: true }
         ];
 
@@ -30,16 +38,24 @@ class CutsceneScene extends Phaser.Scene {
         this.input.keyboard.on('keydown-SPACE', () => { if (this.canAdvance) this.next(); });
         this.input.on('pointerdown',            () => { if (this.canAdvance) this.next(); });
 
-        // Skip button — always visible, jumps straight to game
+        // Skip button — stops audio and jumps straight to game
         const skip = this.add.text(1080, 580, '[ SKIP ]', {
             fontFamily: 'monospace', fontSize: '12px', color: '#443344'
         }).setOrigin(1, 1).setInteractive().setDepth(10);
         skip.on('pointerover', () => skip.setColor('#cc3344'));
         skip.on('pointerout',  () => skip.setColor('#443344'));
-        skip.on('pointerdown', () => this.scene.start('GameScene'));
+        skip.on('pointerdown', () => { this._stopVO(); this.scene.start('GameScene'); });
+    }
+
+    _stopVO() {
+        if (this._vo && this._vo.isPlaying) {
+            this._vo.stop();
+        }
+        this._vo = null;
     }
 
     showScreen(idx) {
+        this._stopVO();
         this.canAdvance = false;
         this.objs.forEach(o => o.destroy());
         this.objs = [];
@@ -71,16 +87,31 @@ class CutsceneScene extends Phaser.Scene {
             this.objs.push(t);
         });
 
-        const hintDelay = totalLines * 380 + 700;
-        this.time.delayedCall(hintDelay, () => {
-            if (!s.final) {
-                const hint = this.add.text(cx, 515, '— SPACE / CLICK TO CONTINUE —', { fontFamily: 'monospace', fontSize: '11px', color: '#443344' }).setOrigin(0.5).setAlpha(0);
-                this.tweens.add({ targets: hint, alpha: 1, duration: 400 });
-                this.objs.push(hint);
-            }
+        if (s.final) {
+            // No VO — auto-advance after short delay
+            this.time.delayedCall(1100, () => this.scene.start('GameScene'));
+            return;
+        }
+
+        const showHintAndUnlock = () => {
+            const hint = this.add.text(cx, 515, '— SPACE / CLICK TO CONTINUE —', {
+                fontFamily: 'monospace', fontSize: '11px', color: '#443344'
+            }).setOrigin(0.5).setAlpha(0);
+            this.tweens.add({ targets: hint, alpha: 1, duration: 400 });
+            this.objs.push(hint);
             this.canAdvance = true;
-            if (s.final) this.time.delayedCall(1100, () => this.scene.start('GameScene'));
-        });
+        };
+
+        if (s.vo && this.cache.audio.has(s.vo)) {
+            // Play VO; unlock advance only after it finishes
+            this._vo = this.sound.add(s.vo);
+            this._vo.once('complete', () => { this._vo = null; showHintAndUnlock(); });
+            this._vo.play();
+        } else {
+            // No VO (or failed to load) — fall back to timed unlock
+            const hintDelay = totalLines * 380 + 700;
+            this.time.delayedCall(hintDelay, showHintAndUnlock);
+        }
     }
 
     next() { this.screenIndex++; this.showScreen(this.screenIndex); }
@@ -130,6 +161,10 @@ class GameScene extends Phaser.Scene {
         for (let i = 1; i <= 5; i++) {
             this.load.image('arena' + i, `assets/backgrounds/game_arenas${i}.jpg.jpeg`);
         }
+
+        this.load.audio('bgm',    'assets/audio/bgm.mp3');
+        this.load.audio('sword1', 'assets/audio/sword1.mp3');
+        this.load.audio('sword2', 'assets/audio/sword2.mp3');
     }
 
     // ── Attack patterns used by the autonomous wraith loop ─────────────────
@@ -194,6 +229,12 @@ class GameScene extends Phaser.Scene {
         this._lastSidebarTick  = 0;   // throttle real-time sidebar updates
 
         this._pendingTimers = [];
+
+        // Background music — looped for the entire fight
+        if (this.cache.audio.has('bgm')) {
+            this.bgm = this.sound.add('bgm', { loop: true, volume: 0.5 });
+            this.bgm.play();
+        }
 
         this.createBackground();
         this.createAnimations();
@@ -686,7 +727,7 @@ class GameScene extends Phaser.Scene {
             }
             // Only attack when close enough — otherwise chase
             const dist = Math.abs(this.wraith.x - this.player.x);
-            if (dist > 210) {
+            if (dist > 150) {
                 this.time.delayedCall(280, loop);
                 return;
             }
@@ -1028,6 +1069,7 @@ class GameScene extends Phaser.Scene {
             onComplete: () => {
                 if (this.gameOver || this._isDestroyed) return;
                 if (this.wraith && this.wraith.active) this.wraith.play('w-attack1', true);
+                this._playSwingSFX();
                 const slash = this.add.rectangle(this.wraith.x - 40, this.wraithGY - 70, 170, 10, 0xff2233, 0.9);
                 this.tweens.add({ targets: slash, x: slash.x - 110, scaleX: 0.1, alpha: 0, duration: 280, ease: 'Power2', onComplete: () => slash.destroy() });
                 if (hit) {
@@ -1057,6 +1099,7 @@ class GameScene extends Phaser.Scene {
                     onComplete: () => {
                         if (this.gameOver || this._isDestroyed) return;
                         if (this.wraith && this.wraith.active) this.wraith.play('w-attack2', true);
+                        this._playSwingSFX();
                         if (hit) {
                             this._dealPlayerDamage(damage, 240);
                             const b = this.add.circle(this.player.x, this.wraithGY - 55, 32, 0xff2233, 0.75);
@@ -1084,6 +1127,7 @@ class GameScene extends Phaser.Scene {
             onComplete: () => {
                 if (this.gameOver || this._isDestroyed) return;
                 if (this.wraith && this.wraith.active) this.wraith.play('w-attack1', true);
+                this._playSwingSFX();
                 this.tweens.add({ targets: this.wraith, y: baseY, duration: 170, ease: 'Power4.easeIn',
                     onComplete: () => {
                         if (this.gameOver || this._isDestroyed) return;
@@ -1115,6 +1159,7 @@ class GameScene extends Phaser.Scene {
             onComplete: () => {
                 if (this.gameOver || this._isDestroyed) return;
                 if (this.wraith && this.wraith.active) this.wraith.play('w-attack2', true);
+                this._playSwingSFX();
                 if (hit) {
                     this._dealPlayerDamage(damage, 100);
                     const slash = this.add.rectangle(tgX - 50, this.wraithGY - 65, 140, 8, 0xff4400, 0.9);
@@ -1135,6 +1180,7 @@ class GameScene extends Phaser.Scene {
             onComplete: () => {
                 if (this.gameOver || this._isDestroyed) return;
                 if (this.wraith && this.wraith.active) this.wraith.play('w-attack1', true);
+                this._playSwingSFX();
                 if (hit) {
                     this._dealPlayerDamage(damageEach, 80);
                     const g1 = this.add.circle(this.player.x, this.wraithGY - 60, 30, 0xffaa00, 0.7);
@@ -1146,6 +1192,7 @@ class GameScene extends Phaser.Scene {
                     const recentDodge = (this.time.now - this.lastDodgeT) < 250;
                     const hit2 = hit && !recentDodge;
                     if (this.wraith && this.wraith.active) this.wraith.play('w-attack2', true);
+                    this._playSwingSFX();
                     if (hit2) {
                         this._dealPlayerDamage(damageEach, 60);
                         const g2 = this.add.circle(this.player.x, this.wraithGY - 60, 25, 0xffaa00, 0.7);
@@ -1180,6 +1227,7 @@ class GameScene extends Phaser.Scene {
             this.tweens.add({ targets: flash2, alpha: 0, scaleX: 0.1, duration: 250, onComplete: () => flash2.destroy() });
 
             if (this.wraith && this.wraith.active) this.wraith.play('w-attack1', true);
+            this._playSwingSFX();
 
             if (hit) {
                 this._dealPlayerDamage(damage, 150);
@@ -1192,6 +1240,11 @@ class GameScene extends Phaser.Scene {
     }
 
     // ── Player attack handler ─────────────────────────────────────────────────
+    _playSwingSFX() {
+        const key = Math.random() < 0.5 ? 'sword1' : 'sword2';
+        if (this.cache.audio.has(key)) this.sound.play(key, { volume: 0.7 });
+    }
+
     performAttack(attackName, moveName, damage, color, cooldownMs, animName, range = 220) {
         if (this.atkCooldown || this.gameOver || this._isDestroyed) return false;
 
@@ -1206,6 +1259,7 @@ class GameScene extends Phaser.Scene {
         this.profile.attack_frequency = +( this._atkTimestamps.length / Math.min(elapsed, 10) ).toFixed(1);
 
         this.player.play(animName, true);
+        this._playSwingSFX();
 
         const dist = Math.abs(this.player.x - this.wraith.x);
         if (dist <= range) {
@@ -1242,8 +1296,8 @@ class GameScene extends Phaser.Scene {
 
         // Wraith chases player when idle — speed scales with distance
         if (!this.wraithActing && !this._roundTransition && this.wraith) {
-            const offset  = this.player.x < 400 ? 160 : 190;  // crowd player when they corner
-            const targetX = Phaser.Math.Clamp(this.player.x + offset, 430, 740);
+            const offset  = this.player.x < 400 ? 100 : 115;  // close-range — must be within 150px to attack
+            const targetX = Phaser.Math.Clamp(this.player.x + offset, 260, 740);
             const dx      = targetX - this.wraith.x;
             const absDx   = Math.abs(dx);
             if (absDx > 2) {
@@ -1698,6 +1752,7 @@ class GameScene extends Phaser.Scene {
         if (this._activeAttackTimer) { this._activeAttackTimer.destroy(); this._activeAttackTimer = null; }
         this.atkCooldown  = false;
         this._isDestroyed = true;
+        if (this.bgm && this.bgm.isPlaying) this.bgm.stop();
         this.time.delayedCall(1400, () => this.scene.start('EndScene', { playerWon: won }));
     }
 }
